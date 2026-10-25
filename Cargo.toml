@@ -1,0 +1,24 @@
+[workspace]
+resolver = "2"
+members = [".", "kernels"]
+
+[package]
+name = "dubdsr"
+version = "1.1.1"
+edition = "2024"
+description = "Empilement GPU Soleil/Lune pour vidéos RAW SeeStar"
+publish = false
+
+[dependencies]
+dubdsr-kernels = { path = "kernels" }
+cudarc = { version = "0.19.10", default-features = false, features = ["std", "driver", "nvrtc", "dynamic-loading", "cuda-12000"] }
+eframe = "0.37"
+rfd = "0.15"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+jpeg-decoder = "0.3"
+sys-locale = "0.3"
+tiff = "0.11"
+
+[build-dependencies]
+cc = "1"
