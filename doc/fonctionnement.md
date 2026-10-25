@@ -1,3 +1,7 @@
+[Français](#fr) · [English](#en)
+
+<a id="fr"></a>
+
 # dubdsr — du démarrage à la fin d’un empilement
 
 dubdsr empile une vidéo AVI RAW SeeStar ou une série de photos RAW d’appareil photo (Soleil ou Lune) sur le GPU NVIDIA et écrit un TIFF 16 bits. Le programme lancé est un binaire Rust : la fenêtre est `eframe` / `egui`, le calcul d’images passe par CUDA (`cudarc`), et les noyaux GPU sont compilés en PTX au moment de la compilation du binaire puis embarqués dedans. Le décodage des photos passe par LibRaw, compilé dans le même binaire.
@@ -293,3 +297,303 @@ Les tons et le TIFF suivent les sections 11 et 12. `stage.done` met la barre à 
 | 100 % | Terminé | Tons et TIFF, sans palier intermédiaire |
 
 Le début de la passe `p` (à partir de 0) parmi `P` passes vaut `0,36 + 0,56 × p / P`. Une seule passe reste donc affichée à 36 % jusqu’au `Terminé`.
+
+<a id="en"></a>
+
+# dubdsr — from startup to the end of a stack
+
+[Français](#fr)
+
+dubdsr stacks a SeeStar RAW AVI video or a series of camera RAW photos (Sun or Moon) on an NVIDIA GPU and writes a 16-bit TIFF. The program you run is a Rust binary: the window is `eframe` / `egui`, image math goes through CUDA (`cudarc`), and the GPU kernels are compiled to PTX when the binary is built, then embedded in it. Photo decoding goes through LibRaw, compiled into the same binary.
+
+Entry point: `src/main.rs` calls `ui::run()`. Everything else happens in the window, then in a background thread that runs `pipeline::stack_video`. A folder is sent to `stack_raw_folder`. A file follows the AVI path.
+
+```mermaid
+flowchart TD
+    A[Launch the binary] --> B[egui window]
+    B --> C[Sun or Moon settings]
+    C --> D[AVI or RAW folder, and section]
+    D --> E[Stack button]
+    E --> F[Background thread: stack_video]
+    F --> G{Is the source a folder?}
+    G -->|no| H[Read AVI]
+    H --> I[GPU volume and sharpness score]
+    I --> J[Select the sharpest frames]
+    J --> K[Phase-correlation alignment]
+    K --> L[GPU crop of the disc]
+    L --> M[Detected or fixed debayer, drizzle]
+    G -->|yes| P[LibRaw and score, file by file]
+    P --> Q[Select the sharpest photos]
+    Q --> R[CPU crop and pattern read from the file]
+    R --> S[Passes: alignment, drizzle, blend]
+    M --> T[Balance, tone, sharpening]
+    S --> T
+    T --> U[16-bit TIFF and preview]
+```
+
+## Code map
+
+| Role | File |
+| --- | --- |
+| Window, button, bar, preview | `src/ui.rs` |
+| Sun / Moon profiles, `settings.json` | `src/settings.rs` |
+| Stacking orchestration | `src/pipeline/stacker.rs` |
+| AVI / OpenDML reading | `src/pipeline/avi.rs` |
+| RAW listing, thumbnail, and decoding | `src/pipeline/rawset.rs` |
+| Stacking a RAW folder | `src/pipeline/rawstack.rs` |
+| Pass size from VRAM | `src/pipeline/budget.rs` |
+| LibRaw mosaic, without demosaic | `native/mosaic.cpp` |
+| LibRaw sources | `third_party/LibRaw` |
+| CUDA context, sharpness, GPU crop, drizzle | `src/gpu.rs` |
+| PTX kernels (blur, demosaic, accumulation) | `kernels/src/lib.rs` |
+| Scores and crop box | `src/pipeline/crop.rs` |
+| Sub-pixel shifts | `src/pipeline/align.rs` |
+| Bayer pattern and white balance | `src/pipeline/bayer.rs` |
+| Background, flatten, gamma, sharpen, mask | `src/pipeline/tone.rs` |
+| TIFF writing | `src/pipeline/tiff.rs` |
+| Displayed text | `locales/fr.ftl` (and `en`, `es`, `de`) |
+
+## 1. Startup
+
+`ui::run()` opens a centered native window, title “dubdsr”, embedded icon, inner size 1200 × 941, minimum 900 × 941. On Windows the subsystem is windowed: no console.
+
+When `DubApp` is created:
+
+1. Dark theme (burgundy backgrounds, yellow text, orange controls) and the bold font of the **Stack** button (`segoeuib.ttf` or `arialbd.ttf`).
+2. Load `settings.json`, then the interface language. A saved code (`fr`, `en`, `es`, or `de`) is applied again. With no code, or if the file is missing, the system language is used (English when it is not supported). `Ctrl+L` cycles the languages and rewrites the JSON.
+3. The settings file:
+   - Windows: `%APPDATA%\dubdsr\settings.json`
+   - Linux: `$XDG_CONFIG_HOME/dubdsr/settings.json`, or `~/.config/dubdsr/settings.json`
+   - Missing or unreadable file: default profiles, Sun target.
+4. The displayed path is the last file of the active profile (`sun` or `moon`).
+5. GPU probe: `CudaContext` on device 0, card name, and total memory in GB. Failure does not prevent the window from opening. A “startup warnings” box stays open while CUDA is unavailable. Stacking fails later with the same kind of error.
+6. If the path points to a readable AVI, the video is indexed (frame count, frames per second, width, height) and the preview loads the middle frame. If it points to a folder that contains at least one recognized photo, the folder is listed (file count, frames per second at 0) and the preview loads the middle file. An empty or unreadable folder is treated as a missing source.
+
+After two refreshes, the window height is fitted to the settings column. On close, the current path is copied into the active profile and the JSON is rewritten.
+
+## 2. What the window prepares
+
+The left column holds the settings. The right column shows the preview: the source image, then the stacked image once the job is finished. For an AVI, the preview is the frame in gray, scaled to 8 bits by its maximum. For a RAW folder, it is the embedded thumbnail (JPEG or bitmap) when LibRaw finds one, otherwise the decoded mosaic in gray, also scaled to 8 bits by its maximum. The thumbnail and the mosaic are subsampled so the long edge fits in 1280 pixels. The preview updates when the path changes, and while the section slider is dragged (at most every 40 ms, immediately on release). On an AVI, the sliders show a timecode (index / fps). On a folder, they show the file name at that index.
+
+Two independent profiles are saved. Changing the target copies the path into the previous profile, loads the last file of the new target, and rewrites the JSON.
+
+Shared initial values, then the Sun / Moon difference:
+
+| Setting | Default | Effect on the stack |
+| --- | --- | --- |
+| Frames kept | 10% (step 5, from 10 to 100) | Share of the sharpest frames. The pipeline requires at least 5% and at least 3 frames when the video has enough. |
+| Frame limit | 0 | 0 = every image in the range. Otherwise the range is cut to that count from its start: frame order for an AVI, name order for a folder. |
+| Debayer | on | Bayer color reconstruction. Off: a grayscale stack. |
+| Bayer pattern | Auto | `AUTO`, `GRBG`, `GBRG`, `BGGR`, `RGGB`. `GRGB` is accepted as `GRBG`. On an AVI, Auto compares the four patterns. On a RAW folder, Auto uses the pattern read from the files. |
+| White balance | Moon yes, Sun no | Gray-world gains on the disc, after the color stack. |
+| Auto crop | on | Square around the disc, even corners so the Bayer phase stays put. |
+| Margin | 5% | Widens that square. |
+| Drizzle x3 | on | Output ×3 in width and height. Off: scale 1. |
+| Flatten center | Sun 70%, Moon 0% | Compensates central overexposure. |
+| Gamma | 1.2 | Exponent `1/gamma` after the stretch. |
+| Sharpen / radius | 2.0 / 1.0 | Four Gaussian blur scales. |
+| Sun compression | 0 | `asinh` stretch. 0 leaves it inactive. |
+| Black point | 0.1% | Subtraction floor. |
+| Sky background | on | Subtracts a level estimated in the corners. |
+| Protect highlights | on | White point at 100%. Off: 99.7%, which clips the center a little when flattening is 0. |
+
+The range to stack is the whole source, or an inclusive section `[start, end]` chosen on the slider. **Browse…** opens an AVI. **Folder…** opens a folder of photos. The path can also be pasted into the source field. The **Stack** button stays inactive while a job is running. If the path is neither a file nor a folder, a “Missing file” box opens (`Select an AVI file or a RAW folder.`) and nothing is started.
+
+## 3. Trigger
+
+`start_stack` saves the settings, builds a `StackSettings`, then starts a thread. The interface and the thread talk through a channel:
+
+- `Progress(stage, fraction)` updates the label and the bar;
+- `Done(StackResult)` finishes successfully;
+- `Fail(PipelineError)` opens the failure box, with text taken from the language catalog.
+
+The interface polls the channel on every frame, and asks for another refresh every 100 ms while the job runs. The timer starts at the click.
+
+## 4. Reading the video
+
+This path applies when the source is a file. A folder follows sections 13 and 14, then the same tone stage (section 11) and the same finish (section 12).
+
+`iter_frames` reopens the AVI and keeps only the requested range, then the frame limit.
+
+Accepted format: RIFF `AVI ` container, including OpenDML `AVIX` blocks (videos past the first gigabyte). Images are the `xxdb` / `xxdc` chunks of the `movi` list.
+
+Accepted pixels:
+
+- uncompressed (`compression` 0 or 3), 8, 16, 24, or 48 bits;
+- fourCC `Y800`, `GREY`, `Y8  `, `Y16 `, `DIB `.
+
+Each frame becomes an `f32` plane in 16-bit units (0…65535). 8-bit data is stretched by `65535/255`. A 24- or 48-bit frame whose R = G = B is treated as raw gray; otherwise it is converted to luminance (coefficients 0.299 / 0.587 / 0.114). Bottom-up DIB rows are flipped; a negative height in the header is already top-down.
+
+Frames are concatenated into one buffer. The bar occupies 0 to 25% during this read (`Reading AVI`, then `Reading frames…` every 25 images, then `Read complete`).
+
+## 5. Transfer and sharpness score
+
+`Gpu::new()` opens CUDA, loads the embedded PTX, and uploads two Gaussian kernels (sigma 1.5 and sigma 6). The whole volume goes up to VRAM. An out-of-memory error becomes the message “The video does not fit in GPU memory”.
+
+For each frame, on the GPU:
+
+1. Fine blur (sigma 1.5), then high frequency = image − fine blur.
+2. Wide blur (sigma 6). Its per-row maximum gives the frame peak.
+3. If that peak is zero, the score is the variance of the high frequency over the whole image.
+4. Otherwise a mask keeps wide-blur pixels above 60% of the peak, and the score is the variance of the high frequency inside that mask. Fewer than 17 masked pixels: fall back to the variance over the whole image.
+
+The score therefore measures detail in the bright area, in practice the disc.
+
+## 6. Selection
+
+`select_top_frames` sorts indexes from sharpest to least sharp. It keeps `ceil(count × ratio)`, at least 3, and never more than the number read. The incoming ratio is already a fraction (10% entered → 0.10), then clamped between 0.05 and 1.
+
+The first kept frame is the reference: alignment at (0, 0), and it is the frame used to find the disc.
+
+## 7. Alignment
+
+The kept frames come back to host memory. For each one except the reference:
+
+1. Subtract the mean, convert to complex.
+2. 2D FFT of the reference (once) and of the frame.
+3. Normalized cross spectrum: `FFT(ref) × conj(FFT(frame)) / magnitude`.
+4. Inverse FFT. The correlation peak is the integer shift.
+5. A parabolic fit on the neighbors gives the sub-pixel shift. A peak in the second half of the image is wrapped to a negative shift.
+
+The result is a pair `(dy, dx)` per frame: how far sampling must shift to bring the content onto the reference. This stage moves the bar from 55% to 62%.
+
+## 8. Crop
+
+When auto crop is on, on the reference frame:
+
+- threshold = 8% of the peak;
+- keep only pixels above the threshold that have at least one 4-connected neighbor also above it (isolated hot pixels are dropped);
+- fewer than 16 pixels: the whole image;
+- otherwise the bounding rectangle of that blob, expanded by the margin, centered on the middle of the extent (a crescent is not recentered on its bright limb);
+- origin and size snapped to even integers, so the Bayer pattern does not change phase.
+
+Otherwise the box is the whole image, without that even snap.
+
+On the AVI path, the GPU then copies each kept frame into this box (`crop_f32`). The full volume is released. The bar shows `Cropping` at 62%. On a RAW folder, the same box is computed on the reference, then each photo is cut on the CPU by `crop_plane` during its pass.
+
+## 9. Bayer pattern
+
+On an AVI, with debayer:
+
+- a fixed pattern is translated to a code (`BGGR` 0, `RGGB` 1, `GRBG` 2, `GBRG` 3);
+- `AUTO`: the first cropped frame is downloaded, the four patterns are demosaiced, and the lowest score wins.
+
+On a RAW folder, the pattern comes from LibRaw after orientation (section 14). Score detection is not run again.
+
+The Auto score of an AVI, computed on the disc (pixels above 12% of the peak, otherwise 5%), is:
+
+`chroma + 2 × grid + 0.5 × dominant`
+
+- chroma: mean gaps |R−G| + |G−B|;
+- grid: Laplacian residual of |R−G|, a sign of a leftover checkerboard;
+- dominant: standard deviation of the R, G, and B means.
+
+The chosen name is shown at the end (`Bayer GRBG`, and so on). The bar passes through `Bayer pattern detection` at 68% only in the Auto case. Just before that, it has already shown `Super-resolution stacking` at 72%: the label therefore steps backward for a moment, then the real stack begins.
+
+With debayer off, there is no pattern and the stack stays single-channel.
+
+## 10. Super-resolution stacking
+
+Scale `S` = 3 when drizzle is on, otherwise 1. The output image is `(cropped height × S)` by `(cropped width × S)`, 3 channels when debayer is on, otherwise 1.
+
+Sharpness scores become weights that sum to 1. For each kept frame, on the GPU:
+
+1. Optional debayer: the float plane is converted back to `u16`, then a bilinear demosaic produces R, G, B. At the border, the pixel is copied from the inner row and column. On a red site: R = value, G = mean of the 4 neighbors, B = mean of the 4 diagonals. Blue and green sites follow the same logic according to the pattern parity.
+2. For each output pixel `(x, y)`, the source is read at  
+   `sy = y / S − dy`, `sx = x / S − dx`,  
+   by bilinear interpolation, multiplied by the weight, and added into the accumulator.
+
+The accumulator comes back to host memory. It is a weighted average, already at the scale of the original pixels, in the cropped space and possibly ×3.
+
+## 11. Tone
+
+Shared order, in color (`normalize_rgb`) or in gray (`normalize_mono`):
+
+1. **Background.** Corners = 14% of the width and of the height. The subtracted level is the 90th percentile of those corners. If the black point is > 0, that level is raised to the matching percentile of the luminance (or of the gray). With the background box off, only this second subtraction happens. Negative values are cut to 0.
+2. **White balance** (color only, box checked): on pixels above 5% of the peak, each channel is pulled toward the mean of the three means.
+3. **Flatten** when strength is > 0. A very wide blur (sigma = 0.16 × the longer side) estimates the illumination. The gain pulls the image toward 0.55 at the median level of the disc, between the neutral gain and the fully flattened gain, then it is clamped. With flattening on, the next stage treats the image as already scaled and simply clamps it between 0 and 1: the white point and the `asinh` compression do not apply.
+4. **Stretch** when flattening is 0. The white point (100% or 99.7%) sets the top; each pixel is divided by that value. If Sun compression is > 0, an `asinh` compresses the highlights before gamma.
+5. **Gamma** when the gap from 1 exceeds 0.001: `value ^ (1/gamma)`.
+6. **Sharpen** when the amount is > 0. Four passes: detail = image − blur, weight `amount × 0.6^level`, starting sigma = radius, doubled at each pass. In color the detail is computed on luminance and added to the three channels.
+7. **Disc mask.** A fade pulls toward black the pixels whose luminance from before flattening is under about 4% of the peak. The sky background already subtracted stays black around the disc.
+8. Conversion to `u16`: `value × 65535`, clamped to 0…65535.
+
+## 12. Finish
+
+`write_result` writes the 16-bit TIFF after the tone stage. For a video, it sits next to the file: `{name}_stacked.tiff`. For a folder, it sits inside the folder: `{folder}_stacked.tiff`. RGB when a Bayer pattern was applied, gray otherwise. A monochrome series stays gray even when debayer is checked.
+
+The thread then sends `StackResult` (path, frames read, frames kept, size, pattern, pixels). The interface:
+
+- sets the bar to 100% and the label `Done — kept/read, Bayer … → path`;
+- freezes the total time;
+- replaces the preview with the 16-bit image scaled to 8 bits (`value / 257`), in color or in gray.
+
+An error at any stage (open, format, no frames, unknown pattern, CUDA, VRAM, write) stops the thread, freezes the time under “Stopped after”, and opens `Stacking failed` with the translated message. The TIFF is written only after every previous stage has succeeded.
+
+## Progress bar of a video
+
+| Fraction | Label | Actual work |
+| --- | --- | --- |
+| 0–25% | Reading AVI / frames | Index and CPU decode |
+| 25% | GPU transfer | Volume copy + CUDA context |
+| 35% | Sharpness analysis | High-frequency variance |
+| 45% | Frame selection | Score sort |
+| 55–62% | Alignment | CPU FFT, frame by frame |
+| 62% | Cropping | Disc box, then GPU copy |
+| 72% then 68% if Auto | Stacking, then Bayer detection | The Bayer label steps backward |
+| 72% → 100% | Super-resolution stacking, then Done | Drizzle, tone, and TIFF, with no step in between |
+
+Tone and the TIFF write have no displayed stage: the bar stays on stacking until the final `Done`.
+
+## 13. RAW folder: listing and decoding
+
+`list_raw_files` reads only the files in the folder, and does not walk into subfolders. The extension, in lowercase, must be one of:
+
+`cr2`, `cr3`, `nef`, `nrw`, `orf`, `pef`, `arw`, `dng`, `raf`, `rw2`
+
+JPEG, XMP, and other files are ignored. The kept names are sorted without regard to case. The `[start, end]` range, then the frame limit, cut this list. An empty list produces “No RAW photos in the folder.”
+
+Each photo kept for the computation goes through `decode_raw`, which calls `native/mosaic.cpp`. On Windows the path is UTF-16. Elsewhere it is a byte string. LibRaw opens the file and `extract_mosaic` returns the mosaic, without demosaicing it.
+
+Rejected, with “Unsupported RAW file”: sRAW, Fuji rotation, floating point, a pattern other than Bayer (the LibRaw filter is then below 1000), a missing `raw_image` plane, an invalid active area, an unreadable pattern. A single-channel sensor (`filters` zero and at most one color) is accepted: the returned Bayer code is −1.
+
+The active area is `sizes.width` × `sizes.height`, offset by `left_margin` and `top_margin`. An odd width or height is shortened by one pixel so the mosaic stays even. The black of each pixel is `black`, plus the channel black, plus the periodic `cblack` pattern when it exists. White is `color.maximum`, otherwise `2^bits − 1`, otherwise 65535. The stored value is `(sample − black) × 65535 / (white − black)`, clamped to 0…65535.
+
+`sizes.flip` is returned as is. Rust applies it in `orient_mosaic`, and rewrites the pattern so the top-left 2×2 square follows the pixels:
+
+- bit 0: horizontal mirror;
+- bit 1: vertical mirror;
+- bit 2 (value 4): transpose of rows and columns.
+
+The codes returned by LibRaw become `BGGR`, `RGGB`, `GRBG`, `GBRG`. A code outside 0…3 stops decoding.
+
+The preview asks for the thumbnail first (`full = 0`): JPEG, RGB bitmap, or gray bitmap. If there is none, the full mosaic is decoded and shown in gray. A failed open or unpack produces “Cannot open the RAW file”, with the file name and the LibRaw text when there is one.
+
+## 14. RAW folder: stacking
+
+`stack_raw_folder` opens CUDA once, then decodes each photo in the range. Width, height, and pattern must stay those of the first photo. A mismatch produces “This file does not match the series”, with the file name. Each mosaic is uploaded alone to the GPU, receives the same sharpness score as the AVI frames (section 5), then leaves the card. The whole series therefore does not sit in VRAM during this read. The bar shows `Reading RAW i/n` from 0 to 25%.
+
+Selection is that of section 6. The reference is the sharpest photo. It is decoded again and used for the crop (section 8, on the CPU) and for the phase spectrum. The spectrum is that of the whole mosaic, computed once.
+
+`packet_len` measures free memory and uses only 60% of it. The fixed cost is the output accumulator, plus the demosaic buffer when there are three channels. The per-photo cost is the cropped plane. If the accumulator and a single photo already exceed that budget, stacking stops with the card-memory message and the free amount in Go. Otherwise the kept photos are grouped into passes of that size.
+
+In each pass, the photos are opened again. The reference already in memory is not read again. The shift `(dy, dx)` comes from `PhaseReference::shift_of` on the whole mosaic: the same phase correlation as section 7, with no “Alignment” label. The plane is then cut by `crop_plane` into the shared box, stacked by `Gpu::superres` (section 10), and the pass average is added to the host accumulator with a weight equal to the sum of that pass’s scores. After the last pass, the accumulator is divided by the sum of those weights: that is the weighted average of every kept photo.
+
+The pattern, before the passes:
+
+- debayer off: one channel, no pattern name;
+- `AUTO` and a pattern present in the series: that pattern, code unchanged (`BGGR` 0, `RGGB` 1, `GRBG` 2, `GBRG` 3);
+- `AUTO` on a monochrome series: one channel;
+- a fixed pattern: that name, or “Unknown Bayer pattern” when it is not recognized.
+
+Tone and the TIFF follow sections 11 and 12. `stage.done` sets the bar to 100%.
+
+| Fraction | Label | Actual work |
+| --- | --- | --- |
+| 0–25% | Reading RAW i/n | LibRaw decode, GPU score of one photo, release |
+| 30% | Frame selection | Score sort |
+| 34% | Cropping | Disc box, then pass size |
+| 36%, then toward 92% | Pass i/n | Reopen, alignment, CPU crop, drizzle, blend |
+| 100% | Done | Tone and TIFF, with no step in between |
+
+The start of pass `p` (from 0) among `P` passes is `0.36 + 0.56 × p / P`. A single pass therefore stays displayed at 36% until `Done`.

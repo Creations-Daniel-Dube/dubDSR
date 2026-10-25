@@ -1,6 +1,10 @@
-# dubdsr
+[Français](#fr) · [English](#en)
 
-Empilement GPU Soleil / Lune pour les vidéos RAW SeeStar et les séries de photos RAW d’appareil photo. Le programme lancé est un binaire Rust pur.
+
+
+# dubDSR v1.1.1 aka dub Disc Stacking Rust
+
+Empilement Nividia GPU Soleil / Lune pour les vidéos RAW SeeStar et les séries de photos RAW d’appareil photo. Le programme lancé est un binaire Rust pur.
 
 La seule pièce à avoir sur la machine est le pilote NVIDIA déjà installé (`nvcuda.dll` sous Windows, `libcuda.so.1` sous Ubuntu).
 
@@ -45,3 +49,55 @@ cargo build --release
 
 - Windows : `target/release/dubdsr.exe`. Le runtime C est lié en statique, donc pas de redistribuable Visual C++ à installer.
 - Ubuntu : `target/release/dubdsr`. Le binaire s’appuie sur la glibc et les bibliothèques d’un bureau Ubuntu déjà installé, plus le pilote NVIDIA.
+
+
+
+# dubDSR v1.1.1 aka dub Disc Stacking Rust
+
+[Français](#fr)
+
+Nvidia GPU stacking of the Sun and Moon for SeeStar RAW videos and camera RAW photo series. The program you run is a pure Rust binary.
+
+The only thing the machine needs is the NVIDIA driver already installed (`nvcuda.dll` on Windows, `libcuda.so.1` on Ubuntu).
+
+## Run
+
+On Windows, double-click `dubdsr.exe`. On Ubuntu, run `./dubdsr`.
+
+The window opens even when no NVIDIA card is detected: a warning says so, and stacking fails until the driver is available. A video that is too long, or a RAW series that is too wide for the card’s memory, fails with an explicit message.
+
+Languages: French, English, Spanish, German. `Ctrl+L` cycles them. The chosen language is saved with the Sun and Moon settings and applied again at launch:
+
+- Windows: `%APPDATA%\dubdsr\settings.json`
+- Ubuntu: `$XDG_CONFIG_HOME/dubdsr/settings.json`, or `~/.config/dubdsr/settings.json`
+
+Sun and Moon settings are the same for both sources: share of the sharpest frames, alignment, crop, drizzle, tone. With Bayer pattern **Auto**, the video is analyzed, and a RAW series uses the pattern read from the files.
+
+## SeeStar video
+
+**Browse…** opens an AVI. The 16-bit TIFF `{name}_stacked.tiff` is written next to the video.
+
+## RAW folder
+
+**Folder…** opens a folder of photos. The folder path can also be pasted into the source field. Recognized files, sorted by name, are:
+
+`CR2`, `CR3`, `NEF`, `NRW`, `ORF`, `PEF`, `ARW`, `DNG`, `RAF`, `RW2`
+
+Decoding (Bayer mosaic and orientation) is done by LibRaw, already compiled into the binary. The preview shows the embedded thumbnail when the file has one.
+
+The whole series must share the same size and the same pattern. A different file stops stacking and names that file. A frame range limits the series to the files between the two indexes, in name order.
+
+The 16-bit TIFF `{folder}_stacked.tiff` is written inside the source folder.
+
+## Build
+
+A nightly compiler, the GPU target, and a C++ compiler are required to produce the binary. LibRaw is compiled with it. The user of the `.exe` does not need them.
+
+```bash
+rustup toolchain install nightly
+rustup target add nvptx64-nvidia-cuda --toolchain nightly
+cargo build --release
+```
+
+- Windows: `target/release/dubdsr.exe`. The C runtime is linked statically, so no Visual C++ redistributable has to be installed.
+- Ubuntu: `target/release/dubdsr`. The binary relies on the glibc and libraries of an Ubuntu desktop that is already installed, plus the NVIDIA driver.
