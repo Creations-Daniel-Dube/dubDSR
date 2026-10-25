@@ -21,6 +21,8 @@ Les valeurs de la capture ci-dessous sont celles d’un profil Lune déjà modif
 
 Les numéros sur la capture sont ceux des contrôles ci-dessous. Les titres de groupe (Cible, Source, Zone à empiler, Réglages, Tons) ne sont pas numérotés. Dans **Réglages** et dans **Tons**, les numéros descendent d’abord la colonne de gauche, puis la colonne de droite.
 
+Dans le programme, le bouton **?** à droite du titre **Aperçu du résultat** ouvre une fenêtre avec cette capture et les mêmes textes. Le survol d’un contrôle affiche son texte sans ouvrir la fenêtre. La langue de l’aide suit `Ctrl+L`.
+
 | N° | Contrôle sur la capture |
 | --- | --- |
 | 1 | Ligne GPU |

@@ -846,6 +846,7 @@ dependencies = [
  "cudarc",
  "dubdsr-kernels",
  "eframe",
+ "image",
  "jpeg-decoder",
  "rfd",
  "serde",
