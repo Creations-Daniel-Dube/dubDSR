@@ -1,6 +1,8 @@
-[Français](#fr) · [English](#en)
+[Français](#français) · [English](#english)
 
+# Français
 
+[English](#english)
 
 # dubDSR v1.1.1 aka dub Disc Stacking Rust
 
@@ -52,9 +54,11 @@ cargo build --release
 
 
 
-# dubDSR v1.1.1 aka dub Disc Stacking Rust
+# English
 
-[Français](#fr)
+[Français](#français)
+
+# dubDSR v1.1.1 aka dub Disc Stacking Rust
 
 Nvidia GPU stacking of the Sun and Moon for SeeStar RAW videos and camera RAW photo series. The program you run is a pure Rust binary.
 

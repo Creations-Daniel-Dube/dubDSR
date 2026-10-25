@@ -1,6 +1,8 @@
-[Français](#fr) · [English](#en)
+[Français](#français) · [English](#english)
 
-<a id="fr"></a>
+# Français
+
+[English](#english)
 
 # dubdsr — du démarrage à la fin d’un empilement
 
@@ -298,11 +300,11 @@ Les tons et le TIFF suivent les sections 11 et 12. `stage.done` met la barre à 
 
 Le début de la passe `p` (à partir de 0) parmi `P` passes vaut `0,36 + 0,56 × p / P`. Une seule passe reste donc affichée à 36 % jusqu’au `Terminé`.
 
-<a id="en"></a>
+# English
+
+[Français](#français)
 
 # dubdsr — from startup to the end of a stack
-
-[Français](#fr)
 
 dubdsr stacks a SeeStar RAW AVI video or a series of camera RAW photos (Sun or Moon) on an NVIDIA GPU and writes a 16-bit TIFF. The program you run is a Rust binary: the window is `eframe` / `egui`, image math goes through CUDA (`cudarc`), and the GPU kernels are compiled to PTX when the binary is built, then embedded in it. Photo decoding goes through LibRaw, compiled into the same binary.
 
