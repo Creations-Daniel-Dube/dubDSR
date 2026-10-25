@@ -4,7 +4,7 @@
 
 [English](#english)
 
-# dubDSR v1.1.1 aka dub Disc Stacking Rust
+# dubDSR v1.1.1 aka **dub Disc Stacking Rust**
 
 Empilement Nividia GPU Soleil / Lune pour les vidéos RAW SeeStar et les séries de photos RAW d’appareil photo. Le programme lancé est un binaire Rust pur.
 
@@ -51,8 +51,6 @@ cargo build --release
 
 - Windows : `target/release/dubdsr.exe`. Le runtime C est lié en statique, donc pas de redistribuable Visual C++ à installer.
 - Ubuntu : `target/release/dubdsr`. Le binaire s’appuie sur la glibc et les bibliothèques d’un bureau Ubuntu déjà installé, plus le pilote NVIDIA.
-
-
 
 # English
 
