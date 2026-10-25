@@ -4,7 +4,7 @@ members = [".", "kernels"]
 
 [package]
 name = "dubdsr"
-version = "1.1.1"
+version = "1.2.1"
 edition = "2024"
 description = "Empilement GPU Soleil/Lune pour vidéos RAW SeeStar"
 publish = false
