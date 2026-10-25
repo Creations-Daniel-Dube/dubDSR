@@ -1,24 +1,30 @@
 # dubdsr — du démarrage à la fin d’un empilement
 
-dubdsr empile une vidéo AVI RAW SeeStar (Soleil ou Lune) sur le GPU NVIDIA et écrit un TIFF 16 bits à côté de la source. Le programme lancé est un binaire Rust : la fenêtre est `eframe` / `egui`, le calcul d’images passe par CUDA (`cudarc`), et les noyaux GPU sont compilés en PTX au moment de la compilation du binaire puis embarqués dedans.
+dubdsr empile une vidéo AVI RAW SeeStar ou une série de photos RAW d’appareil photo (Soleil ou Lune) sur le GPU NVIDIA et écrit un TIFF 16 bits. Le programme lancé est un binaire Rust : la fenêtre est `eframe` / `egui`, le calcul d’images passe par CUDA (`cudarc`), et les noyaux GPU sont compilés en PTX au moment de la compilation du binaire puis embarqués dedans. Le décodage des photos passe par LibRaw, compilé dans le même binaire.
 
-Point d’entrée : `src/main.rs` appelle `ui::run()`. Tout le reste se joue dans la fenêtre, puis dans un fil d’arrière-plan qui exécute `pipeline::stack_video`.
+Point d’entrée : `src/main.rs` appelle `ui::run()`. Tout le reste se joue dans la fenêtre, puis dans un fil d’arrière-plan qui exécute `pipeline::stack_video`. Un dossier est envoyé à `stack_raw_folder`. Un fichier suit le chemin AVI.
 
 ```mermaid
 flowchart TD
     A[Lancement du binaire] --> B[Fenêtre egui]
     B --> C[Réglages Soleil ou Lune]
-    C --> D[Choix de l'AVI et de la section]
+    C --> D[AVI ou dossier RAW, et section]
     D --> E[Bouton Empiler]
     E --> F[Fil d'arrière-plan : stack_video]
-    F --> G[Lecture des frames]
-    G --> H[Transfert GPU et score de netteté]
-    H --> I[Sélection des meilleures frames]
-    I --> J[Alignement par corrélation de phase]
-    J --> K[Recadrage du disque]
-    K --> L[Debayer et empilement drizzle]
-    L --> M[Balance, tons, netteté]
-    M --> N[TIFF 16 bits + aperçu]
+    F --> G{La source est un dossier ?}
+    G -->|non| H[Lecture AVI]
+    H --> I[Volume GPU et score de netteté]
+    I --> J[Sélection des meilleures frames]
+    J --> K[Alignement par corrélation de phase]
+    K --> L[Recadrage GPU du disque]
+    L --> M[Debayer détecté ou fixé, drizzle]
+    G -->|oui| P[LibRaw et score, fichier par fichier]
+    P --> Q[Sélection des meilleures photos]
+    Q --> R[Recadrage CPU et motif lu dans le fichier]
+    R --> S[Passes : alignement, drizzle, fusion]
+    M --> T[Balance, tons, netteté]
+    S --> T
+    T --> U[TIFF 16 bits et aperçu]
 ```
 
 ## Carte du code
@@ -29,6 +35,11 @@ flowchart TD
 | Profils Soleil / Lune, `settings.json` | `src/settings.rs` |
 | Orchestration de l’empilement | `src/pipeline/stacker.rs` |
 | Lecture AVI / OpenDML | `src/pipeline/avi.rs` |
+| Liste, miniature et décodage RAW | `src/pipeline/rawset.rs` |
+| Empilement d’un dossier RAW | `src/pipeline/rawstack.rs` |
+| Taille des passes selon la VRAM | `src/pipeline/budget.rs` |
+| Mosaïque LibRaw, sans dématriçage | `native/mosaic.cpp` |
+| Sources LibRaw | `third_party/LibRaw` |
 | Contexte CUDA, netteté, recadrage GPU, drizzle | `src/gpu.rs` |
 | Noyaux PTX (flou, demosaic, accumulation) | `kernels/src/lib.rs` |
 | Scores et boîte de recadrage | `src/pipeline/crop.rs` |
@@ -52,13 +63,13 @@ flowchart TD
    - Fichier absent ou illisible : profils par défaut, cible Soleil.
 4. Le chemin affiché est le dernier fichier du profil actif (`sun` ou `moon`).
 5. Sonde GPU : `CudaContext` sur le périphérique 0, nom de la carte et mémoire totale en Go. L’échec n’empêche pas l’ouverture. Une boîte « avertissements au démarrage » reste ouverte tant que CUDA est indisponible. L’empilement échouera plus tard avec le même type d’erreur.
-6. Si le chemin pointe vers un AVI lisible, la vidéo est indexée (nombre de frames, images/seconde, largeur, hauteur) et l’aperçu charge la frame du milieu.
+6. Si le chemin pointe vers un AVI lisible, la vidéo est indexée (nombre de frames, images/seconde, largeur, hauteur) et l’aperçu charge la frame du milieu. S’il pointe vers un dossier qui contient au moins une photo reconnue, le dossier est listé (nombre de fichiers, images/seconde à 0) et l’aperçu charge le fichier du milieu. Un dossier vide ou illisible est traité comme une source absente.
 
 Après deux rafraîchissements, la hauteur de la fenêtre est ajustée sur la colonne de réglages. À la fermeture, le chemin courant est recopié dans le profil actif et le JSON est réécrit.
 
 ## 2. Ce que la fenêtre prépare
 
-La colonne de gauche porte les réglages. La colonne de droite montre l’aperçu : frame source en gris, puis image empilée une fois le travail fini. L’aperçu source est ramené sur 8 bits par le maximum de la frame. Il se met à jour quand le chemin change, et pendant le glisser de la section (au plus toutes les 40 ms, tout de suite au relâchement).
+La colonne de gauche porte les réglages. La colonne de droite montre l’aperçu : image source, puis image empilée une fois le travail fini. Pour un AVI, l’aperçu est la frame en gris, ramenée sur 8 bits par son maximum. Pour un dossier RAW, c’est la miniature embarquée (JPEG ou bitmap) quand LibRaw en trouve une, sinon la mosaïque décodée en gris, elle aussi ramenée sur 8 bits par son maximum. La miniature et la mosaïque sont sous-échantillonnées pour que le plus grand côté tienne dans 1280 pixels. L’aperçu se met à jour quand le chemin change, et pendant le glisser de la section (au plus toutes les 40 ms, tout de suite au relâchement). Sur un AVI, les curseurs affichent un timecode (index / fps). Sur un dossier, ils affichent le nom du fichier à cet index.
 
 Deux profils indépendants sont enregistrés. Changer de cible recopie le chemin dans l’ancien profil, charge le dernier fichier de la nouvelle cible, et réécrit le JSON.
 
@@ -67,9 +78,9 @@ Valeurs initiales communes, puis écart Soleil / Lune :
 | Réglage | Défaut | Effet sur l’empilement |
 | --- | --- | --- |
 | Frames conservées | 10 % (pas de 5, de 10 à 100) | Part des frames les plus nettes. Le pipeline impose au moins 5 % et au moins 3 frames quand la vidéo en contient assez. |
-| Limite de frames | 0 | 0 = toutes les frames de la zone. Sinon, lecture arrêtée à ce nombre, à partir du début de la zone. |
+| Limite de frames | 0 | 0 = toutes les images de la zone. Sinon, la zone est coupée à ce nombre depuis son début : ordre des frames pour un AVI, ordre des noms pour un dossier. |
 | Debayer | activé | Reconstruction couleur Bayer. Désactivé : pile en niveaux de gris. |
-| Motif Bayer | Auto | `AUTO`, `GRBG`, `GBRG`, `BGGR`, `RGGB`. `GRGB` est accepté comme `GRBG`. |
+| Motif Bayer | Auto | `AUTO`, `GRBG`, `GBRG`, `BGGR`, `RGGB`. `GRGB` est accepté comme `GRBG`. Sur un AVI, Auto compare les quatre motifs. Sur un dossier RAW, Auto reprend le motif lu dans les fichiers. |
 | Balance des blancs | Lune oui, Soleil non | Gains « monde gris » sur le disque, après l’empilement couleur. |
 | Recadrage auto | activé | Carré autour du disque, coins pairs pour garder la phase Bayer. |
 | Marge | 5 % | Élargit ce carré. |
@@ -82,7 +93,7 @@ Valeurs initiales communes, puis écart Soleil / Lune :
 | Fond du ciel | activé | Soustrait un niveau estimé dans les coins. |
 | Protéger les hautes lumières | activé | Point blanc à 100 %. Désactivé : 99,7 %, ce qui écrête un peu le centre quand l’aplatissement est à 0. |
 
-La zone à empiler est toute la vidéo, ou une section inclusive `[début, fin]` choisie sur le curseur (timecode = index / fps). Le bouton **Empiler** est inactif tant qu’un travail tourne. Si le chemin n’est pas un fichier, une boîte « Fichier manquant » s’ouvre et rien n’est lancé.
+La zone à empiler est toute la source, ou une section inclusive `[début, fin]` choisie sur le curseur. **Parcourir…** ouvre un AVI. **Dossier…** ouvre un dossier de photos. Le chemin peut aussi être collé dans le champ source. Le bouton **Empiler** est inactif tant qu’un travail tourne. Si le chemin n’est ni un fichier ni un dossier, une boîte « Fichier manquant » s’ouvre (`Sélectionnez un fichier AVI ou un dossier RAW.`) et rien n’est lancé.
 
 ## 3. Déclenchement
 
@@ -95,6 +106,8 @@ La zone à empiler est toute la vidéo, ou une section inclusive `[début, fin]`
 L’interface interroge le canal à chaque image, et redemande un rafraîchissement toutes les 100 ms pendant le travail. Le chronomètre part au clic.
 
 ## 4. Lecture de la vidéo
+
+Ce chemin s’applique quand la source est un fichier. Un dossier suit les sections 13 et 14, puis les mêmes tons (section 11) et la même fin (section 12).
 
 `iter_frames` rouvre l’AVI et ne garde que la zone demandée, puis la limite de frames.
 
@@ -152,16 +165,18 @@ Si le recadrage auto est actif, sur la frame de référence :
 
 Sinon la boîte est l’image entière, sans cet alignement pair.
 
-Le GPU copie ensuite chaque frame retenue dans cette boîte (`crop_f32`). Le volume complet est libéré. La barre affiche `Recadrage` à 62 %.
+Sur le chemin AVI, le GPU copie ensuite chaque frame retenue dans cette boîte (`crop_f32`). Le volume complet est libéré. La barre affiche `Recadrage` à 62 %. Sur un dossier RAW, la même boîte est calculée sur la référence, puis chaque photo est coupée sur le CPU par `crop_plane` au moment de sa passe.
 
 ## 9. Motif Bayer
 
-Avec le debayer :
+Sur un AVI, avec le debayer :
 
 - motif fixé : il est traduit en code (`BGGR` 0, `RGGB` 1, `GRBG` 2, `GBRG` 3) ;
 - `AUTO` : la première frame recadrée est redescendue, les quatre motifs sont dématricés, et le plus bas score gagne.
 
-Le score, calculé sur le disque (pixels au-dessus de 12 % du pic, sinon 5 %), est :
+Sur un dossier RAW, le motif vient de LibRaw après orientation (section 14). La détection par score n’est pas relancée.
+
+Le score Auto d’un AVI, calculé sur le disque (pixels au-dessus de 12 % du pic, sinon 5 %), est :
 
 `chroma + 2 × grille + 0,5 × dominante`
 
@@ -201,7 +216,7 @@ Ordre commun, en couleur (`normalize_rgb`) ou en gris (`normalize_mono`) :
 
 ## 12. Fin
 
-Le fichier s’écrit à côté de la vidéo : `{nom}_stacked.tiff`, 16 bits, RVB si debayer, gris sinon.
+`write_result` écrit le TIFF 16 bits après les tons. Pour une vidéo, il est à côté du fichier : `{nom}_stacked.tiff`. Pour un dossier, il est dans le dossier : `{dossier}_stacked.tiff`. RVB si un motif Bayer a été appliqué, gris sinon. Une série monochrome reste en gris même si le debayer est coché.
 
 Le fil envoie alors `StackResult` (chemin, frames lues, frames gardées, taille, motif, pixels). L’interface :
 
@@ -211,7 +226,7 @@ Le fil envoie alors `StackResult` (chemin, frames lues, frames gardées, taille,
 
 Une erreur à n’importe quelle étape (ouverture, format, aucune frame, motif inconnu, CUDA, VRAM, écriture) arrête le fil, fige le temps sous « Arrêté après », et ouvre `Échec de l'empilement` avec le message traduit. Le TIFF n’est écrit qu’après la réussite de toutes les étapes précédentes.
 
-## Barre de progression
+## Barre de progression d’une vidéo
 
 | Fraction | Libellé | Travail réel |
 | --- | --- | --- |
@@ -225,3 +240,56 @@ Une erreur à n’importe quelle étape (ouverture, format, aucune frame, motif 
 | 72 % → 100 % | Empilement super-résolu, puis Terminé | Drizzle, tons et TIFF, sans palier intermédiaire |
 
 Les tons et l’écriture du TIFF n’ont pas d’étape affichée : la barre reste sur l’empilement jusqu’au `Terminé` final.
+
+## 13. Dossier RAW : liste et décodage
+
+`list_raw_files` ne lit que les fichiers du dossier, sans descendre dans les sous-dossiers. L’extension, en minuscules, doit être l’une de :
+
+`cr2`, `cr3`, `nef`, `nrw`, `orf`, `pef`, `arw`, `dng`, `raf`, `rw2`
+
+Les JPEG, XMP et autres fichiers sont ignorés. Les noms retenus sont triés sans tenir compte de la casse. La zone `[début, fin]`, puis la limite de frames, coupent cette liste. Une liste vide donne « Aucune photo RAW dans le dossier. »
+
+Chaque photo retenue pour le calcul passe par `decode_raw`, qui appelle `native/mosaic.cpp`. Sous Windows le chemin est UTF-16. Ailleurs il est une suite d’octets. LibRaw ouvre le fichier et `extract_mosaic` sort la mosaïque, sans la dématricer.
+
+Refusés, avec « RAW non pris en charge » : sRAW, rotation Fuji, flottant, motif autre que Bayer (le filtre LibRaw est alors inférieur à 1000), absence de plan `raw_image`, cadre actif invalide, motif illisible. Un capteur à un seul canal (`filters` nul et au plus une couleur) est accepté : le code Bayer renvoyé vaut −1.
+
+Le cadre actif est `sizes.width` × `sizes.height`, décalé de `left_margin` et `top_margin`. Une largeur ou une hauteur impaire est raccourcie d’un pixel pour garder une mosaïque paire. Le noir de chaque pixel est `black`, plus le noir du canal, plus le motif périodique `cblack` quand il existe. Le blanc est `color.maximum`, sinon `2^bits − 1`, sinon 65535. La valeur écrite est `(échantillon − noir) × 65535 / (blanc − noir)`, bornée à 0…65535.
+
+`sizes.flip` est renvoyé tel quel. Rust l’applique dans `orient_mosaic`, et réécrit le motif pour que le carré 2×2 en haut à gauche suive les pixels :
+
+- bit 0 : miroir horizontal ;
+- bit 1 : miroir vertical ;
+- bit 2 (valeur 4) : transposition des lignes et des colonnes.
+
+Les codes renvoyés par LibRaw deviennent `BGGR`, `RGGB`, `GRBG`, `GBRG`. Un code hors de 0…3 arrête le décodage.
+
+L’aperçu demande d’abord la miniature (`full = 0`) : JPEG, bitmap RVB, ou bitmap gris. À défaut, la mosaïque complète est décodée et affichée en gris. Une ouverture ou un dépaquetage raté donne « Impossible d'ouvrir le RAW », avec le nom du fichier et le texte LibRaw quand il y en a un.
+
+## 14. Dossier RAW : empilement
+
+`stack_raw_folder` ouvre CUDA une fois, puis décode chaque photo de la zone. Largeur, hauteur et motif doivent rester ceux de la première photo. Un écart donne « Ce fichier ne va pas avec la série », avec le nom du fichier. Chaque mosaïque monte seule sur le GPU, reçoit le même score de netteté que les frames AVI (section 5), puis quitte la carte. La série entière ne réside donc pas en VRAM pendant cette lecture. La barre affiche `Lecture des RAW i/n` de 0 à 25 %.
+
+La sélection est celle de la section 6. La référence est la photo la plus nette. Elle est redécodée et sert au recadrage (section 8, sur le CPU) et au spectre de phase. Le spectre est celui de la mosaïque entière, calculé une fois.
+
+`packet_len` mesure la mémoire libre et n’en utilise que 60 %. Le coût fixe est l’accumulateur de sortie, plus le tampon de dématriçage quand il y a trois canaux. Le coût par photo est le plan recadré. Si l’accumulateur et une seule photo dépassent déjà ce budget, l’empilement s’arrête avec le message de mémoire de la carte et le nombre de Go libres. Sinon les photos gardées sont groupées en passes de cette taille.
+
+Dans chaque passe, les photos sont rouvertes. La référence déjà en mémoire n’est pas relue. Le décalage `(dy, dx)` vient de `PhaseReference::shift_of` sur la mosaïque entière : même corrélation de phase que la section 7, sans libellé « Alignement ». Le plan est ensuite coupé par `crop_plane` dans la boîte commune, empilé par `Gpu::superres` (section 10), et la moyenne de la passe est ajoutée à l’accumulateur hôte avec pour poids la somme des scores de la passe. Après la dernière passe, l’accumulateur est divisé par la somme de ces poids : c’est la moyenne pondérée de toutes les photos gardées.
+
+Le motif, avant les passes :
+
+- debayer décoché : un canal, pas de nom de motif ;
+- `AUTO` et un motif présent dans la série : ce motif, code inchangé (`BGGR` 0, `RGGB` 1, `GRBG` 2, `GBRG` 3) ;
+- `AUTO` sur une série monochrome : un canal ;
+- motif fixé : ce nom, ou « Motif Bayer inconnu » s’il n’est pas reconnu.
+
+Les tons et le TIFF suivent les sections 11 et 12. `stage.done` met la barre à 100 %.
+
+| Fraction | Libellé | Travail réel |
+| --- | --- | --- |
+| 0–25 % | Lecture des RAW i/n | Décodage LibRaw, score GPU d’une photo, libération |
+| 30 % | Sélection des frames | Tri des scores |
+| 34 % | Recadrage | Boîte du disque, puis taille des passes |
+| 36 %, puis vers 92 % | Passe i/n | Réouverture, alignement, recadrage CPU, drizzle, fusion |
+| 100 % | Terminé | Tons et TIFF, sans palier intermédiaire |
+
+Le début de la passe `p` (à partir de 0) parmi `P` passes vaut `0,36 + 0,56 × p / P`. Une seule passe reste donc affichée à 36 % jusqu’au `Terminé`.
