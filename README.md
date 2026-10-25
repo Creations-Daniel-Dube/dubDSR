@@ -25,11 +25,11 @@ Les réglages Soleil et Lune sont les mêmes pour les deux sources : part des im
 
 ## Vidéo SeeStar
 
-**Parcourir…** ouvre un AVI. Le TIFF 16 bits `{nom}_stacked.tiff` est écrit à côté de la vidéo.
+**Vidéo…** ouvre un AVI. Le TIFF 16 bits `{nom}_stacked.tiff` est écrit à côté de la vidéo.
 
 ## Dossier RAW
 
-**Dossier…** ouvre un dossier de photos. On peut aussi coller le chemin du dossier dans le champ source. Les fichiers reconnus, triés par nom, sont :
+**Photos…** ouvre un dossier de photos. On peut aussi coller le chemin du dossier dans le champ source. Les fichiers reconnus, triés par nom, sont :
 
 `CR2`, `CR3`, `NEF`, `NRW`, `ORF`, `PEF`, `ARW`, `DNG`, `RAF`, `RW2`
 
@@ -77,11 +77,11 @@ Sun and Moon settings are the same for both sources: share of the sharpest frame
 
 ## SeeStar video
 
-**Browse…** opens an AVI. The 16-bit TIFF `{name}_stacked.tiff` is written next to the video.
+**Video…** opens an AVI. The 16-bit TIFF `{name}_stacked.tiff` is written next to the video.
 
 ## RAW folder
 
-**Folder…** opens a folder of photos. The folder path can also be pasted into the source field. Recognized files, sorted by name, are:
+**Photos…** opens a folder of photos. The folder path can also be pasted into the source field. Recognized files, sorted by name, are:
 
 `CR2`, `CR3`, `NEF`, `NRW`, `ORF`, `PEF`, `ARW`, `DNG`, `RAF`, `RW2`
 

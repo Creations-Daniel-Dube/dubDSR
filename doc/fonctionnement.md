@@ -99,7 +99,7 @@ Valeurs initiales communes, puis écart Soleil / Lune :
 | Fond du ciel | activé | Soustrait un niveau estimé dans les coins. |
 | Protéger les hautes lumières | activé | Point blanc à 100 %. Désactivé : 99,7 %, ce qui écrête un peu le centre quand l’aplatissement est à 0. |
 
-La zone à empiler est toute la source, ou une section inclusive `[début, fin]` choisie sur le curseur. **Parcourir…** ouvre un AVI. **Dossier…** ouvre un dossier de photos. Le chemin peut aussi être collé dans le champ source. Le bouton **Empiler** est inactif tant qu’un travail tourne. Si le chemin n’est ni un fichier ni un dossier, une boîte « Fichier manquant » s’ouvre (`Sélectionnez un fichier AVI ou un dossier RAW.`) et rien n’est lancé.
+La zone à empiler est toute la source, ou une section inclusive `[début, fin]` choisie sur le curseur. **Vidéo…** ouvre un AVI. **Photos…** ouvre un dossier de photos. Le chemin peut aussi être collé dans le champ source. Le bouton **Empiler** est inactif tant qu’un travail tourne. Si le chemin n’est ni un fichier ni un dossier, une boîte « Fichier manquant » s’ouvre (`Sélectionnez un fichier AVI ou un dossier RAW.`) et rien n’est lancé.
 
 ## 3. Déclenchement
 
@@ -399,7 +399,7 @@ Shared initial values, then the Sun / Moon difference:
 | Sky background | on | Subtracts a level estimated in the corners. |
 | Protect highlights | on | White point at 100%. Off: 99.7%, which clips the center a little when flattening is 0. |
 
-The range to stack is the whole source, or an inclusive section `[start, end]` chosen on the slider. **Browse…** opens an AVI. **Folder…** opens a folder of photos. The path can also be pasted into the source field. The **Stack** button stays inactive while a job is running. If the path is neither a file nor a folder, a “Missing file” box opens (`Select an AVI file or a RAW folder.`) and nothing is started.
+The range to stack is the whole source, or an inclusive section `[start, end]` chosen on the slider. **Video…** opens an AVI. **Photos…** opens a folder of photos. The path can also be pasted into the source field. The **Stack** button stays inactive while a job is running. If the path is neither a file nor a folder, a “Missing file” box opens (`Select an AVI file or a RAW folder.`) and nothing is started.
 
 ## 3. Trigger
 
