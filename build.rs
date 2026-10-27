@@ -1,3 +1,5 @@
+// build.rs
+
 use std::fs;
 use std::path::Path;
 use std::process::Command;
@@ -78,6 +80,10 @@ fn compile_libraw(manifest: &Path) {
     } else {
         build.flag_if_supported("-std=gnu++14");
         build.flag_if_supported("-fno-strict-aliasing");
+        if target.contains("windows-gnu") {
+            // Par défaut cc lie libstdc++.dll.a. L'autre PC n'a pas MinGW.
+            build.cpp_link_stdlib_static(true);
+        }
     }
     for file in libraw_cpp_files(&root.join("src")) {
         build.file(file);
@@ -86,10 +92,6 @@ fn compile_libraw(manifest: &Path) {
 
     if target.contains("windows") {
         println!("cargo:rustc-link-lib=ws2_32");
-    }
-    if target.contains("windows-gnu") {
-        println!("cargo:rustc-link-arg=-static-libstdc++");
-        println!("cargo:rustc-link-arg=-static-libgcc");
     }
 }
 

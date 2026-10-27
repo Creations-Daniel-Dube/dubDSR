@@ -4,7 +4,7 @@ members = [".", "kernels"]
 
 [package]
 name = "dubdsr"
-version = "1.2.1"
+version = "1.2.50"
 edition = "2024"
 description = "Empilement GPU Soleil/Lune pour vidéos RAW SeeStar"
 publish = false
@@ -13,6 +13,7 @@ publish = false
 dubdsr-kernels = { path = "kernels" }
 cudarc = { version = "0.19.10", default-features = false, features = ["std", "driver", "nvrtc", "dynamic-loading", "cuda-12000"] }
 eframe = "0.37"
+image = { version = "0.25.10", default-features = false, features = ["png"] }
 rfd = "0.15"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

@@ -75,7 +75,7 @@ Après deux rafraîchissements, la hauteur de la fenêtre est ajustée sur la co
 
 ## 2. Ce que la fenêtre prépare
 
-La colonne de gauche porte les réglages. La colonne de droite montre l’aperçu : image source, puis image empilée une fois le travail fini. Pour un AVI, l’aperçu est la frame en gris, ramenée sur 8 bits par son maximum. Pour un dossier RAW, c’est la miniature embarquée (JPEG ou bitmap) quand LibRaw en trouve une, sinon la mosaïque décodée en gris, elle aussi ramenée sur 8 bits par son maximum. La miniature et la mosaïque sont sous-échantillonnées pour que le plus grand côté tienne dans 1280 pixels. L’aperçu se met à jour quand le chemin change, et pendant le glisser de la section (au plus toutes les 40 ms, tout de suite au relâchement). Sur un AVI, les curseurs affichent un timecode (index / fps). Sur un dossier, ils affichent le nom du fichier à cet index.
+La colonne de gauche porte les réglages. La colonne de droite montre l’aperçu : image source, puis image empilée une fois le travail fini. Le bouton **?** à droite du titre de l’aperçu ouvre une seconde fenêtre avec la capture numérotée et le texte de chaque contrôle (`help.*` dans les fichiers de langue). Le même texte apparaît au survol du contrôle. Pour un AVI, l’aperçu est la frame en gris, ramenée sur 8 bits par son maximum. Pour un dossier RAW, c’est la miniature embarquée (JPEG ou bitmap) quand LibRaw en trouve une, sinon la mosaïque décodée en gris, elle aussi ramenée sur 8 bits par son maximum. La miniature et la mosaïque sont sous-échantillonnées pour que le plus grand côté tienne dans 1280 pixels. L’aperçu se met à jour quand le chemin change, et pendant le glisser de la section (au plus toutes les 40 ms, tout de suite au relâchement). Sur un AVI, les curseurs affichent un timecode (index / fps). Sur un dossier, ils affichent le nom du fichier à cet index.
 
 Deux profils indépendants sont enregistrés. Changer de cible recopie le chemin dans l’ancien profil, charge le dernier fichier de la nouvelle cible, et réécrit le JSON.
 
@@ -99,7 +99,7 @@ Valeurs initiales communes, puis écart Soleil / Lune :
 | Fond du ciel | activé | Soustrait un niveau estimé dans les coins. |
 | Protéger les hautes lumières | activé | Point blanc à 100 %. Désactivé : 99,7 %, ce qui écrête un peu le centre quand l’aplatissement est à 0. |
 
-La zone à empiler est toute la source, ou une section inclusive `[début, fin]` choisie sur le curseur. **Parcourir…** ouvre un AVI. **Dossier…** ouvre un dossier de photos. Le chemin peut aussi être collé dans le champ source. Le bouton **Empiler** est inactif tant qu’un travail tourne. Si le chemin n’est ni un fichier ni un dossier, une boîte « Fichier manquant » s’ouvre (`Sélectionnez un fichier AVI ou un dossier RAW.`) et rien n’est lancé.
+La zone à empiler est toute la source, ou une section inclusive `[début, fin]` choisie sur le curseur. **Vidéo…** ouvre un AVI. **Photos…** ouvre un dossier de photos. Le chemin peut aussi être collé dans le champ source. Le bouton **Empiler** est inactif tant qu’un travail tourne. Si le chemin n’est ni un fichier ni un dossier, une boîte « Fichier manquant » s’ouvre (`Sélectionnez un fichier AVI ou un dossier RAW.`) et rien n’est lancé.
 
 ## 3. Déclenchement
 
@@ -375,7 +375,7 @@ After two refreshes, the window height is fitted to the settings column. On clos
 
 ## 2. What the window prepares
 
-The left column holds the settings. The right column shows the preview: the source image, then the stacked image once the job is finished. For an AVI, the preview is the frame in gray, scaled to 8 bits by its maximum. For a RAW folder, it is the embedded thumbnail (JPEG or bitmap) when LibRaw finds one, otherwise the decoded mosaic in gray, also scaled to 8 bits by its maximum. The thumbnail and the mosaic are subsampled so the long edge fits in 1280 pixels. The preview updates when the path changes, and while the section slider is dragged (at most every 40 ms, immediately on release). On an AVI, the sliders show a timecode (index / fps). On a folder, they show the file name at that index.
+The left column holds the settings. The right column shows the preview: the source image, then the stacked image once the job is finished. The **?** button to the right of the preview title opens a second window with the numbered screenshot and the text of each control (`help.*` in the language files). The same text appears when hovering the control. For an AVI, the preview is the frame in gray, scaled to 8 bits by its maximum. For a RAW folder, it is the embedded thumbnail (JPEG or bitmap) when LibRaw finds one, otherwise the decoded mosaic in gray, also scaled to 8 bits by its maximum. The thumbnail and the mosaic are subsampled so the long edge fits in 1280 pixels. The preview updates when the path changes, and while the section slider is dragged (at most every 40 ms, immediately on release). On an AVI, the sliders show a timecode (index / fps). On a folder, they show the file name at that index.
 
 Two independent profiles are saved. Changing the target copies the path into the previous profile, loads the last file of the new target, and rewrites the JSON.
 
@@ -399,7 +399,7 @@ Shared initial values, then the Sun / Moon difference:
 | Sky background | on | Subtracts a level estimated in the corners. |
 | Protect highlights | on | White point at 100%. Off: 99.7%, which clips the center a little when flattening is 0. |
 
-The range to stack is the whole source, or an inclusive section `[start, end]` chosen on the slider. **Browse…** opens an AVI. **Folder…** opens a folder of photos. The path can also be pasted into the source field. The **Stack** button stays inactive while a job is running. If the path is neither a file nor a folder, a “Missing file” box opens (`Select an AVI file or a RAW folder.`) and nothing is started.
+The range to stack is the whole source, or an inclusive section `[start, end]` chosen on the slider. **Video…** opens an AVI. **Photos…** opens a folder of photos. The path can also be pasted into the source field. The **Stack** button stays inactive while a job is running. If the path is neither a file nor a folder, a “Missing file” box opens (`Select an AVI file or a RAW folder.`) and nothing is started.
 
 ## 3. Trigger
 

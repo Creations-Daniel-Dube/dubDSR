@@ -66,6 +66,8 @@ pub struct DubApp {
     content_height: f32,
     fit_frames: u8,
     window_fitted: bool,
+    help_open: bool,
+    help_shot: Option<TextureHandle>,
 }
 
 impl DubApp {
@@ -106,6 +108,8 @@ impl DubApp {
             content_height: 0.0,
             fit_frames: 0,
             window_fitted: false,
+            help_open: false,
+            help_shot: None,
         };
         app.set_title(&cc.egui_ctx);
         app.probe_video();
@@ -509,7 +513,8 @@ impl DubApp {
     }
 
     fn controls(&mut self, ui: &mut egui::Ui) {
-        ui.label(self.gpu_line());
+        let gpu = ui.label(self.gpu_line());
+        self.hover(gpu, "help.gpu");
         self.target_box(ui);
         self.file_box(ui);
         self.range_box(ui);
@@ -525,18 +530,24 @@ impl DubApp {
         let clicked = ui
             .with_layout(Layout::top_down(Align::Center), |ui| {
                 ui.set_width(button_width);
-                ui.add_enabled(!running, egui::Button::new(label).min_size(vec2(button_width, 44.0))).clicked()
+                let button = ui.add_enabled(!running, egui::Button::new(label).min_size(vec2(button_width, 44.0)));
+                let clicked = button.clicked();
+                self.hover(button, "help.stack");
+                clicked
             })
             .inner;
         if clicked {
             self.start_stack();
         }
         ui.add_space(6.0);
-        ui.add(egui::ProgressBar::new(self.progress).show_percentage().desired_width(button_width));
-        ui.label(self.status_text());
+        let progress = ui.add(egui::ProgressBar::new(self.progress).show_percentage().desired_width(button_width));
+        self.hover(progress, "help.progress");
+        let status = ui.label(self.status_text());
+        self.hover(status, "help.status");
         let time = self.time_label();
         if !time.is_empty() {
-            ui.label(time);
+            let time_label = ui.label(time);
+            self.hover(time_label, "help.time");
         }
     }
 
@@ -548,13 +559,14 @@ impl DubApp {
         let mut active = self.settings.active.clone();
         let selected = if active == "moon" { moon.clone() } else { sun.clone() };
         group(ui, &title, |ui| {
-            ui.horizontal(|ui| {
+            let row = ui.horizontal(|ui| {
                 ui.label(label);
                 egui::ComboBox::from_id_salt("target").selected_text(selected).show_ui(ui, |ui| {
                     ui.selectable_value(&mut active, "sun".to_string(), sun);
                     ui.selectable_value(&mut active, "moon".to_string(), moon);
                 });
             });
+            self.hover(row.response, "help.target");
         });
         if active != self.settings.active {
             self.set_target(&active);
@@ -576,12 +588,17 @@ impl DubApp {
                     self.probe_video();
                     self.save();
                 }
-                if ui.button(browse).clicked() {
+                self.hover(response, "help.path");
+                let browse_button = ui.button(browse);
+                if browse_button.clicked() {
                     browse_clicked = true;
                 }
-                if ui.button(folder).clicked() {
+                self.hover(browse_button, "help.browse");
+                let folder_button = ui.button(folder);
+                if folder_button.clicked() {
                     folder_clicked = true;
                 }
+                self.hover(folder_button, "help.folder");
             });
         });
         if browse_clicked {
@@ -601,14 +618,17 @@ impl DubApp {
         let before = section_on;
         group(ui, &title, |ui| {
             ui.add_enabled_ui(has_video, |ui| {
-                ui.radio_value(&mut section_on, false, full);
-                ui.radio_value(&mut section_on, true, section);
+                let full_button = ui.radio_value(&mut section_on, false, full);
+                self.hover(full_button, "help.full");
+                let section_button = ui.radio_value(&mut section_on, true, section);
+                self.hover(section_button, "help.section");
             });
             if !has_video {
                 ui.label(self.t("range.empty"));
             } else if section_on {
                 let last = self.video_frames.saturating_sub(1);
-                let moved = range_slider(ui, &mut self.range_start, &mut self.range_end, last);
+                let (moved, slider) = range_slider(ui, &mut self.range_start, &mut self.range_end, last);
+                self.hover(slider, "help.slider");
                 let start_code = self.timecode(self.range_start);
                 let end_code = self.timecode(self.range_end);
                 ui.label(self.catalog.fmt(
@@ -637,12 +657,15 @@ impl DubApp {
                 self.drag_f32(left, "keep", |profile| &mut profile.keep_ratio, 10.0..=100.0, 5.0, 0, " %", |value| {
                     ((value / 5.0).round() * 5.0).clamp(10.0, 100.0)
                 });
-                left.label(self.t("max_frames"));
+                let limit_label = left.label(self.t("max_frames"));
+                self.hover(limit_label, "help.limit");
                 let mut limit = self.profile().max_frames;
-                if left.add(wide_drag(left, DragValue::new(&mut limit).range(0u32..=100_000))).changed() {
+                let limit_drag = left.add(wide_drag(left, DragValue::new(&mut limit).range(0u32..=100_000)));
+                if limit_drag.changed() {
                     self.profile_mut().max_frames = limit;
                     self.save();
                 }
+                self.hover(limit_drag, "help.limit");
                 self.bayer_combo(left);
                 self.drag_f32(left, "margin", |profile| &mut profile.crop_margin, 1.0..=30.0, 1.0, 0, " %", |value| value.clamp(1.0, 30.0));
 
@@ -672,7 +695,8 @@ impl DubApp {
     }
 
     fn bayer_combo(&mut self, ui: &mut egui::Ui) {
-        ui.label(self.t("bayer"));
+        let label = ui.label(self.t("bayer"));
+        self.hover(label, "help.bayer");
         let auto = self.t("bayer.auto");
         let mut pattern = self.profile().bayer_pattern.clone();
         let selected = if pattern == "AUTO" { auto.clone() } else { pattern.clone() };
@@ -681,12 +705,13 @@ impl DubApp {
         if width.is_finite() {
             combo = combo.width(width);
         }
-        combo.show_ui(ui, |ui| {
+        let shown = combo.show_ui(ui, |ui| {
             ui.selectable_value(&mut pattern, "AUTO".to_string(), auto);
             for name in ["GRBG", "GBRG", "BGGR", "RGGB"] {
                 ui.selectable_value(&mut pattern, name.to_string(), name);
             }
         });
+        self.hover(shown.response, "help.bayer");
         if pattern != self.profile().bayer_pattern {
             self.profile_mut().bayer_pattern = pattern;
             self.save();
@@ -696,10 +721,12 @@ impl DubApp {
     fn toggle(&mut self, ui: &mut egui::Ui, key: &str, field: impl Fn(&mut ProfileSettings) -> &mut bool) {
         let label = self.t(key);
         let mut value = *field(self.profile_mut());
-        if ui.checkbox(&mut value, label).changed() {
+        let response = ui.checkbox(&mut value, label);
+        if response.changed() {
             *field(self.profile_mut()) = value;
             self.save();
         }
+        self.hover(response, help_for(key));
     }
 
     fn drag_f32(
@@ -713,13 +740,91 @@ impl DubApp {
         suffix: &str,
         snap: impl Fn(f32) -> f32,
     ) {
-        ui.label(self.t(key));
+        let label = ui.label(self.t(key));
+        self.hover(label, help_for(key));
         let mut value = *field(self.profile_mut());
         let drag = DragValue::new(&mut value).range(range).speed(speed).fixed_decimals(decimals).suffix(suffix);
-        if ui.add(wide_drag(ui, drag)).changed() {
+        let response = ui.add(wide_drag(ui, drag));
+        if response.changed() {
             *field(self.profile_mut()) = snap(value);
             self.save();
         }
+        self.hover(response, help_for(key));
+    }
+
+    fn hover(&self, response: egui::Response, key: &str) {
+        let text = self.t(key);
+        let disabled = text.clone();
+        response
+            .on_hover_ui(|ui| tip_label(ui, &text))
+            .on_disabled_hover_ui(|ui| tip_label(ui, &disabled));
+    }
+
+    fn help_window(&mut self, ctx: &Context) {
+        if !self.help_open {
+            return;
+        }
+        let mut close = false;
+        let title = self.t("help.title");
+        ctx.show_viewport_immediate(
+            egui::ViewportId::from_hash_of("dubdsr-help"),
+            egui::ViewportBuilder::default()
+                .with_title(title)
+                .with_inner_size([900.0, 960.0])
+                .with_min_inner_size([520.0, 420.0])
+                .with_icon(crate::icon::app_icon()),
+            |ui, class| {
+                ui.ctx().set_visuals(theme());
+                if ui.input(|input| input.viewport().close_requested()) {
+                    close = true;
+                }
+                if class == egui::ViewportClass::EmbeddedWindow {
+                    self.help_body(ui);
+                } else {
+                    egui::CentralPanel::default().show(ui, |ui| self.help_body(ui));
+                }
+            },
+        );
+        if close {
+            self.help_open = false;
+        }
+    }
+
+    fn help_body(&mut self, ui: &mut egui::Ui) {
+        ui.style_mut().interaction.selectable_labels = true;
+        ScrollArea::vertical().id_salt("help-scroll").auto_shrink([false, false]).show(ui, |ui| {
+            if let Some(texture) = self.help_texture(ui.ctx()) {
+                let size = texture.size_vec2();
+                let width = ui.available_width();
+                if width > 1.0 && size.x > 1.0 {
+                    let draw = vec2(width, width * size.y / size.x);
+                    ui.add(egui::Image::from_texture(&texture).fit_to_exact_size(draw));
+                }
+            }
+            ui.add_space(8.0);
+            ui.label(self.t("help.intro"));
+            ui.add_space(12.0);
+            for (number, title_key, body_key) in HELP_ITEMS {
+                let title = self.t(title_key);
+                let title = title.trim().trim_end_matches(':').trim();
+                ui.label(RichText::new(format!("{number}. {title}")).strong());
+                ui.label(self.t(body_key));
+                ui.add_space(10.0);
+            }
+        });
+    }
+
+    fn help_texture(&mut self, ctx: &Context) -> Option<TextureHandle> {
+        if let Some(texture) = &self.help_shot {
+            return Some(texture.clone());
+        }
+        let decoded = image::load_from_memory_with_format(HELP_PNG, image::ImageFormat::Png).ok()?;
+        let rgba = decoded.to_rgba8();
+        let size = [rgba.width() as usize, rgba.height() as usize];
+        let color = ColorImage::from_rgba_unmultiplied(size, rgba.as_raw());
+        let texture = ctx.load_texture("help-shot", color, TextureOptions::LINEAR);
+        self.help_shot = Some(texture.clone());
+        Some(texture)
     }
 
     fn fit_window(&mut self, ctx: &Context) {
@@ -739,9 +844,20 @@ impl DubApp {
     }
 
     fn preview_panel(&mut self, ui: &mut egui::Ui) {
-        ui.label(RichText::new(self.t("preview")).strong());
+        ui.horizontal(|ui| {
+            let title = ui.label(RichText::new(self.t("preview")).strong());
+            self.hover(title, "help.preview");
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                let button = ui.add(egui::Button::new(RichText::new("?").strong()).min_size(vec2(28.0, 24.0)));
+                if button.clicked() {
+                    self.help_open = true;
+                }
+                self.hover(button, "help.open");
+            });
+        });
         let available = ui.available_size();
-        let (rect, _) = ui.allocate_exact_size(available, Sense::hover());
+        let (rect, response) = ui.allocate_exact_size(available, Sense::hover());
+        self.hover(response, "help.preview");
         ui.painter().rect_filled(rect, 4.0, Color32::from_rgb(0x0e, 0x03, 0x03));
         let Some(texture) = &self.preview else {
             return;
@@ -797,6 +913,7 @@ impl eframe::App for DubApp {
         egui::CentralPanel::default().show(ui, |ui| self.contents(ui));
         self.fit_window(&ctx);
         self.dialogs(&ctx);
+        self.help_window(&ctx);
         if self.pending_preview.is_some_and(|(_, _, immediate)| immediate) {
             ctx.request_repaint();
         } else if self.job.is_some() || self.pending_preview.is_some() || self.started.is_some() {
@@ -949,10 +1066,10 @@ fn modal(ctx: &Context, title: &str, body: &str, ok: &str, open: &mut bool) {
     }
 }
 
-fn range_slider(ui: &mut egui::Ui, start: &mut usize, end: &mut usize, last: usize) -> Option<(usize, bool)> {
+fn range_slider(ui: &mut egui::Ui, start: &mut usize, end: &mut usize, last: usize) -> (Option<(usize, bool)>, egui::Response) {
     let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 28.0), Sense::click_and_drag());
     if last == 0 {
-        return None;
+        return (None, response);
     }
     let x_of = |frame: usize| rect.left() + (frame as f32 / last as f32) * rect.width();
     let painter = ui.painter();
@@ -972,10 +1089,10 @@ fn range_slider(ui: &mut egui::Ui, start: &mut usize, end: &mut usize, last: usi
         ui.data_mut(|data| data.insert_temp(id, which));
     }
     if !response.dragged() && !response.drag_stopped() {
-        return None;
+        return (None, response);
     }
     let Some(pointer) = response.interact_pointer_pos().or(ui.input(|input| input.pointer.interact_pos())) else {
-        return None;
+        return (None, response);
     };
     let which = ui.data(|data| data.get_temp::<u8>(id).unwrap_or(0));
     let frame = ((pointer.x - rect.left()) / rect.width().max(1.0) * last as f32).round().clamp(0.0, last as f32) as usize;
@@ -985,5 +1102,88 @@ fn range_slider(ui: &mut egui::Ui, start: &mut usize, end: &mut usize, last: usi
         *end = frame.max(*start);
     }
     let index = if which == 0 { *start } else { *end };
-    Some((index, response.drag_stopped()))
+    (Some((index, response.drag_stopped())), response)
+}
+
+const HELP_PNG: &[u8] = include_bytes!("../manuals/fenetre.png");
+
+const HELP_ITEMS: &[(&str, &str, &str)] = &[
+    ("1", "help.t.gpu", "help.gpu"),
+    ("2", "target.label", "help.target"),
+    ("3", "help.t.path", "help.path"),
+    ("4", "file.browse", "help.browse"),
+    ("5", "file.folder", "help.folder"),
+    ("6", "range.full", "help.full"),
+    ("7", "range.section", "help.section"),
+    ("8", "keep", "help.keep"),
+    ("9", "max_frames", "help.limit"),
+    ("10", "bayer", "help.bayer"),
+    ("11", "margin", "help.margin"),
+    ("12", "debayer", "help.debayer"),
+    ("13", "wb", "help.wb"),
+    ("14", "crop", "help.crop"),
+    ("15", "drizzle", "help.drizzle"),
+    ("16", "flatten", "help.flatten"),
+    ("17", "gamma", "help.gamma"),
+    ("18", "sharpen", "help.sharpen"),
+    ("19", "radius", "help.radius"),
+    ("20", "solar", "help.solar"),
+    ("21", "black", "help.black"),
+    ("22", "background", "help.background"),
+    ("23", "protect", "help.protect"),
+    ("24", "stack", "help.stack"),
+    ("25", "help.t.progress", "help.progress"),
+    ("26", "help.t.status", "help.status"),
+    ("27", "preview", "help.preview"),
+    ("28", "help.t.slider", "help.slider"),
+    ("29", "help.t.time", "help.time"),
+];
+
+fn help_for(label: &str) -> &'static str {
+    match label {
+        "keep" => "help.keep",
+        "margin" => "help.margin",
+        "flatten" => "help.flatten",
+        "gamma" => "help.gamma",
+        "sharpen" => "help.sharpen",
+        "radius" => "help.radius",
+        "solar" => "help.solar",
+        "black" => "help.black",
+        "debayer" => "help.debayer",
+        "wb" => "help.wb",
+        "crop" => "help.crop",
+        "drizzle" => "help.drizzle",
+        "background" => "help.background",
+        "protect" => "help.protect",
+        _ => "help.open",
+    }
+}
+
+fn tip_label(ui: &mut egui::Ui, text: &str) {
+    ui.set_max_width(420.0);
+    ui.label(text);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::HELP_ITEMS;
+    use crate::i18n::Catalog;
+
+    #[test]
+    fn help_texts_exist_in_every_language() {
+        for language in ["fr", "en", "es", "de"] {
+            let catalog = Catalog::load(language);
+            for key in ["help.open", "help.title", "help.intro"] {
+                let text = catalog.text(key);
+                assert_ne!(text, key, "{language} {key}");
+                assert!(!text.is_empty(), "{language} {key}");
+            }
+            for (_, title, body) in HELP_ITEMS {
+                let title_text = catalog.text(title);
+                assert_ne!(&title_text, title, "{language} {title}");
+                let body_text = catalog.text(body);
+                assert_ne!(&body_text, body, "{language} {body}");
+            }
+        }
+    }
 }

@@ -4,7 +4,7 @@
 
 [English](#english)
 
-# dubDSR v1.1.1 aka dub Disc Stacking Rust
+# dubDSR v1.1.1 aka **dub Disc Stacking Rust**
 
 Empilement Nividia GPU Soleil / Lune pour les vidéos RAW SeeStar et les séries de photos RAW d’appareil photo. Le programme lancé est un binaire Rust pur.
 
@@ -21,15 +21,17 @@ Langues : français, anglais, espagnol, allemand. `Ctrl+L` les fait défiler. La
 - Windows : `%APPDATA%\dubdsr\settings.json`
 - Ubuntu : `$XDG_CONFIG_HOME/dubdsr/settings.json`, ou `~/.config/dubdsr/settings.json`
 
+Le bouton **?** à droite du titre de l’aperçu ouvre l’aide, et le survol d’un contrôle affiche le même texte.
+
 Les réglages Soleil et Lune sont les mêmes pour les deux sources : part des images les plus nettes, alignement, recadrage, drizzle, tons. En motif Bayer **Auto**, la vidéo est analysée, et une série RAW reprend le motif lu dans les fichiers.
 
 ## Vidéo SeeStar
 
-**Parcourir…** ouvre un AVI. Le TIFF 16 bits `{nom}_stacked.tiff` est écrit à côté de la vidéo.
+**Vidéo…** ouvre un AVI. Le TIFF 16 bits `{nom}_stacked.tiff` est écrit à côté de la vidéo.
 
 ## Dossier RAW
 
-**Dossier…** ouvre un dossier de photos. On peut aussi coller le chemin du dossier dans le champ source. Les fichiers reconnus, triés par nom, sont :
+**Photos…** ouvre un dossier de photos. On peut aussi coller le chemin du dossier dans le champ source. Les fichiers reconnus, triés par nom, sont :
 
 `CR2`, `CR3`, `NEF`, `NRW`, `ORF`, `PEF`, `ARW`, `DNG`, `RAF`, `RW2`
 
@@ -52,8 +54,6 @@ cargo build --release
 - Windows : `target/release/dubdsr.exe`. Le runtime C est lié en statique, donc pas de redistribuable Visual C++ à installer.
 - Ubuntu : `target/release/dubdsr`. Le binaire s’appuie sur la glibc et les bibliothèques d’un bureau Ubuntu déjà installé, plus le pilote NVIDIA.
 
-
-
 # English
 
 [Français](#français)
@@ -75,15 +75,17 @@ Languages: French, English, Spanish, German. `Ctrl+L` cycles them. The chosen la
 - Windows: `%APPDATA%\dubdsr\settings.json`
 - Ubuntu: `$XDG_CONFIG_HOME/dubdsr/settings.json`, or `~/.config/dubdsr/settings.json`
 
+The **?** button to the right of the preview title opens the help, and hovering a control shows the same text.
+
 Sun and Moon settings are the same for both sources: share of the sharpest frames, alignment, crop, drizzle, tone. With Bayer pattern **Auto**, the video is analyzed, and a RAW series uses the pattern read from the files.
 
 ## SeeStar video
 
-**Browse…** opens an AVI. The 16-bit TIFF `{name}_stacked.tiff` is written next to the video.
+**Video…** opens an AVI. The 16-bit TIFF `{name}_stacked.tiff` is written next to the video.
 
 ## RAW folder
 
-**Folder…** opens a folder of photos. The folder path can also be pasted into the source field. Recognized files, sorted by name, are:
+**Photos…** opens a folder of photos. The folder path can also be pasted into the source field. Recognized files, sorted by name, are:
 
 `CR2`, `CR3`, `NEF`, `NRW`, `ORF`, `PEF`, `ARW`, `DNG`, `RAF`, `RW2`
 
