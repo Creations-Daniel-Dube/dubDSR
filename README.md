@@ -4,7 +4,9 @@
 
 [English](#english)
 
-# dubDSR v1.1.1 aka **dub Disc Stacking Rust**
+# dubDSR v1.2.50 alias **dub Disc Stacking Rust**
+
+> Application du catalogue dubSuite. Installation, mises à jour et désinstallation : [dubSuite](https://github.com/Creations-Daniel-Dube/dubSuite).
 
 Empilement Nividia GPU Soleil / Lune pour les vidéos RAW SeeStar et les séries de photos RAW d’appareil photo. Le programme lancé est un binaire Rust pur.
 
