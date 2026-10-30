@@ -1,7 +1,8 @@
 window.title = dubdsr — Sonne / Mond (CUDA) --- Version {1}
 gpu.prefix = GPU: {1}
-gpu.available = {1} — {2} GB VRAM frei
+gpu.available = {1} — compute {2} — {3} — {4} GB VRAM frei
 gpu.unavailable = CUDA nicht verfügbar: {1}
+gpu.unsupported = Grafikkarte nicht unterstützt (compute {1}). Eine GTX 1060 (6.1) oder eine neuere Karte ist erforderlich.
 target.box = Ziel
 target.label = Zu stapelndes Objekt:
 target.sun = ☀ Sonne
@@ -80,6 +81,7 @@ error.debayer_mono = Debayer erwartet ein RAW-Einzelbild.
 error.scale_min = scale muss >= 1 sein
 error.vram = Das Video passt nicht in den GPU-Speicher: {1}
 error.gpu = GPU-Fehler: {1}
+error.unsupported_gpu = Grafikkarte nicht unterstützt (compute {1}). Eine GTX 1060 (6.1) oder eine neuere Karte ist erforderlich.
 error.write = TIFF kann nicht geschrieben werden: {1}
 help.open = Öffnet das Hilfefenster.
 help.title = dubdsr — Hilfe
@@ -90,7 +92,7 @@ help.t.progress = Fortschrittsbalken
 help.t.status = Statuszeile
 help.t.slider = Abschnittsregler
 help.t.time = Zeit
-help.gpu = Name der NVIDIA-Karte und ihr Speicher, in GB. Nichts einzustellen. Ohne CUDA schlägt das Stapeln fehl.
+help.gpu = Name der Karte, Compute X.Y, Modul sm_61 oder sm_70 und Speicher in GB. Nichts einzustellen. Karten vor der GTX 1060 werden nicht unterstützt. Ohne CUDA schlägt das Stapeln fehl.
 help.target = Sonne und Mond sind zwei getrennte Profile. Jedes behält seinen Pfad und alle Einstellungen. Klicken Sie auf die Liste zum Wechseln.
 help.path = Pfad des AVI-Videos oder des Foto-Ordners. Pfad einfügen und anderswo klicken, um ihn zu öffnen.
 help.browse = Öffnet ein SeeStar-AVI, auch über 1 GB. Das TIFF wird neben das Video geschrieben: name_stacked.tiff.

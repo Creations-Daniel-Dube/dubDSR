@@ -76,7 +76,10 @@ mod tests {
     fn french_catalog_formats_a_stage() {
         let catalog = Catalog::load("fr");
         assert_eq!(catalog.text("stage.read_avi"), "Lecture AVI");
-        assert_eq!(catalog.fmt("gpu.available", &["RTX", "12.0"]), "RTX — 12.0 Go VRAM libre");
+        assert_eq!(
+            catalog.fmt("gpu.available", &["RTX", "8.6", "sm_70", "12.0"]),
+            "RTX — compute 8.6 — sm_70 — 12.0 Go VRAM libre"
+        );
     }
 
     #[test]

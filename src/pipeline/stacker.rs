@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::error::PipelineError;
-use crate::gpu::Gpu;
+use crate::gpu::{report_card, Gpu};
 
 use super::align::align_frames;
 use super::avi::iter_frames;
@@ -74,11 +74,13 @@ pub fn stack_video(input: &Path, settings: &StackSettings, mut report: impl FnMu
     if input.is_dir() {
         return stack_raw_folder(input, settings, &mut report);
     }
-    let mut on_progress = |key: &str, fraction: f32| report(key, &[], fraction);
-    on_progress("stage.read_avi", 0.0);
-    let max_frames = if settings.max_frames == 0 { None } else { Some(settings.max_frames as usize) };
-    let mut report_read = |stage: &str, fraction: f32| on_progress(stage, fraction * 0.25);
-    let (width, height, packed) = iter_frames(input, max_frames, settings.start_frame, settings.end_frame, Some(&mut report_read))?;
+    let (width, height, packed) = {
+        let mut on_progress = |key: &str, fraction: f32| report(key, &[], fraction);
+        on_progress("stage.read_avi", 0.0);
+        let max_frames = if settings.max_frames == 0 { None } else { Some(settings.max_frames as usize) };
+        let mut report_read = |stage: &str, fraction: f32| on_progress(stage, fraction * 0.25);
+        iter_frames(input, max_frames, settings.start_frame, settings.end_frame, Some(&mut report_read))?
+    };
     let width_i = width as i32;
     let height_i = height as i32;
     let frame_pixels = (width as usize).saturating_mul(height as usize);
@@ -87,8 +89,10 @@ pub fn stack_video(input: &Path, settings: &StackSettings, mut report: impl FnMu
     }
     let frame_count = packed.len() / frame_pixels;
 
-    on_progress("stage.gpu_transfer", 0.25);
+    report("stage.gpu_transfer", &[], 0.25);
     let gpu = Gpu::new()?;
+    report_card(&gpu.info, &mut report, 0.25);
+    let mut on_progress = |key: &str, fraction: f32| report(key, &[], fraction);
     let volume = gpu.upload(&packed)?;
     drop(packed);
 

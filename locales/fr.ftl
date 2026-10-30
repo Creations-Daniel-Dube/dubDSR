@@ -1,7 +1,8 @@
 window.title = dubdsr — Soleil / Lune (CUDA) --- Version {1}
 gpu.prefix = GPU : {1}
-gpu.available = {1} — {2} Go VRAM libre
+gpu.available = {1} — compute {2} — {3} — {4} Go VRAM libre
 gpu.unavailable = CUDA indisponible : {1}
+gpu.unsupported = Carte non prise en charge (compute {1}). Une GTX 1060 (6.1) ou une carte plus récente est requise.
 target.box = Cible
 target.label = Objet à empiler :
 target.sun = ☀ Soleil
@@ -80,6 +81,7 @@ error.debayer_mono = Le debayer attend une image RAW mono-plan.
 error.scale_min = scale doit être >= 1
 error.vram = La vidéo ne tient pas dans la mémoire de la carte : {1}
 error.gpu = Erreur GPU : {1}
+error.unsupported_gpu = Carte non prise en charge (compute {1}). Une GTX 1060 (6.1) ou une carte plus récente est requise.
 error.write = Impossible d'écrire le TIFF : {1}
 help.open = Ouvre la fenêtre d'aide.
 help.title = dubdsr — Aide
@@ -90,7 +92,7 @@ help.t.progress = Barre de progression
 help.t.status = Ligne d'état
 help.t.slider = Curseur de section
 help.t.time = Temps
-help.gpu = Nom de la carte NVIDIA et sa mémoire, en Go. Rien à régler. Si CUDA est indisponible, l'empilement échouera.
+help.gpu = Nom de la carte, compute X.Y, module sm_61 ou sm_70, et mémoire en Go. Rien à régler. En dessous de la GTX 1060, la carte n'est pas prise en charge. Si CUDA est indisponible, l'empilement échouera.
 help.target = Soleil et Lune sont deux profils séparés. Chacun garde son chemin et tous ses réglages. Cliquez la liste pour changer d'objet.
 help.path = Chemin de la vidéo AVI ou du dossier de photos. Collez un chemin, puis cliquez ailleurs pour l'ouvrir.
 help.browse = Ouvre une vidéo AVI SeeStar, y compris au-delà de 1 Go. Le TIFF est écrit à côté de la vidéo : nom_stacked.tiff.

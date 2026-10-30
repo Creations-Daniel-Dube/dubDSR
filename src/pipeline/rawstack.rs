@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::error::PipelineError;
-use crate::gpu::Gpu;
+use crate::gpu::{report_card, Gpu};
 
 use super::align::PhaseReference;
 use super::bayer::{normalize_pattern, pattern_code};
@@ -19,8 +19,9 @@ pub fn stack_raw_folder(input: &Path, settings: &StackSettings, on_progress: &mu
     }
     let frame_count = files.len();
 
-    on_progress("stage.raw_read", &["1", &frame_count.to_string()], 0.0);
     let gpu = Gpu::new()?;
+    report_card(&gpu.info, on_progress, 0.0);
+    on_progress("stage.raw_read", &["1", &frame_count.to_string()], 0.0);
     let mut scores = Vec::with_capacity(frame_count);
     let mut geometry: Option<(i32, i32, Option<String>)> = None;
     for (index, path) in files.iter().enumerate() {

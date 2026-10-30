@@ -1,7 +1,8 @@
 window.title = dubdsr — Sun / Moon (CUDA) --- Version {1}
 gpu.prefix = GPU: {1}
-gpu.available = {1} — {2} GB VRAM free
+gpu.available = {1} — compute {2} — {3} — {4} GB VRAM free
 gpu.unavailable = CUDA unavailable: {1}
+gpu.unsupported = Unsupported card (compute {1}). A GTX 1060 (6.1) or a newer card is required.
 target.box = Target
 target.label = Object to stack:
 target.sun = ☀ Sun
@@ -80,6 +81,7 @@ error.debayer_mono = Debayer expects a single-plane RAW image.
 error.scale_min = scale must be >= 1
 error.vram = The video does not fit in GPU memory: {1}
 error.gpu = GPU error: {1}
+error.unsupported_gpu = Unsupported card (compute {1}). A GTX 1060 (6.1) or a newer card is required.
 error.write = Cannot write the TIFF: {1}
 help.open = Opens the help window.
 help.title = dubdsr — Help
@@ -90,7 +92,7 @@ help.t.progress = Progress bar
 help.t.status = Status line
 help.t.slider = Section slider
 help.t.time = Time
-help.gpu = NVIDIA card name and its memory, in GB. Nothing to set. If CUDA is unavailable, stacking will fail.
+help.gpu = Card name, compute X.Y, kernel module sm_61 or sm_70, and memory in GB. Nothing to set. Cards older than the GTX 1060 are not supported. If CUDA is unavailable, stacking will fail.
 help.target = Sun and Moon are two separate profiles. Each keeps its own path and every setting. Click the list to switch.
 help.path = Path of the AVI video or the photo folder. Paste a path, then click elsewhere to open it.
 help.browse = Opens a SeeStar AVI video, including files over 1 GB. The TIFF is written next to the video: name_stacked.tiff.

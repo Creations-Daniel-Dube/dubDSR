@@ -9,7 +9,7 @@ use eframe::egui::{
 use rfd::FileDialog;
 
 use crate::error::PipelineError;
-use crate::gpu::probe_gpu;
+use crate::gpu::{probe_gpu, GpuInfo, ProbeError};
 use crate::i18n::{cycle_language, Catalog};
 use crate::pipeline::avi::AviVideo;
 use crate::pipeline::rawset::{PreviewImage, RawFolder};
@@ -50,7 +50,7 @@ pub struct DubApp {
     video: Option<Source>,
     video_frames: usize,
     video_fps: f64,
-    gpu: Result<(String, String), String>,
+    gpu: Result<GpuInfo, ProbeError>,
     warn_open: bool,
     missing_open: bool,
     error_open: bool,
@@ -139,8 +139,12 @@ impl DubApp {
 
     fn gpu_line(&self) -> String {
         let detail = match &self.gpu {
-            Ok((name, gib)) => self.catalog.fmt("gpu.available", &[name, gib]),
-            Err(err) => self.catalog.fmt("gpu.unavailable", &[err]),
+            Ok(info) => self.catalog.fmt(
+                "gpu.available",
+                &[&info.name, &format!("{}.{}", info.major, info.minor), info.kernels, &info.gib],
+            ),
+            Err(ProbeError::Cuda(err)) => self.catalog.fmt("gpu.unavailable", &[err]),
+            Err(ProbeError::Unsupported { major, minor }) => self.catalog.fmt("gpu.unsupported", &[&format!("{major}.{minor}")]),
         };
         self.catalog.fmt("gpu.prefix", &[&detail])
     }
@@ -453,7 +457,13 @@ impl DubApp {
         self.started = Some(Instant::now());
         self.frozen_time.clear();
         self.progress = 0.0;
-        self.status = Status::Busy;
+        self.status = match &self.gpu {
+            Ok(info) => Status::Stage {
+                key: "gpu.available".to_string(),
+                args: vec![info.name.clone(), format!("{}.{}", info.major, info.minor), info.kernels.to_string(), info.gib.clone()],
+            },
+            Err(_) => Status::Busy,
+        };
         thread::spawn(move || {
             let outcome = stack_video(&path, &settings, |stage, args, value| {
                 let _ = tx.send(Msg::Progress {
@@ -881,8 +891,12 @@ impl DubApp {
         let ok = self.t("ok");
         if self.warn_open {
             let title = self.t("preflight.title");
-            let detail = self.gpu.as_ref().err().map(String::as_str).unwrap_or("");
-            let body = self.catalog.fmt("preflight.body", &[detail]);
+            let detail = match self.gpu.as_ref() {
+                Err(ProbeError::Cuda(detail)) => detail.clone(),
+                Err(ProbeError::Unsupported { major, minor }) => self.catalog.fmt("gpu.unsupported", &[&format!("{major}.{minor}")]),
+                Ok(_) => String::new(),
+            };
+            let body = self.catalog.fmt("preflight.body", &[&detail]);
             let mut open = self.warn_open;
             modal(ctx, &title, &body, &ok, &mut open);
             self.warn_open = open;

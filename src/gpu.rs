@@ -23,15 +23,118 @@ use dubdsr_kernels::filter::gaussian_kernel;
 use crate::error::PipelineError;
 use crate::pipeline::crop::CropBox;
 
-pub fn probe_gpu() -> Result<(String, String), String> {
-    let ctx = CudaContext::new(0).map_err(|err| err.to_string())?;
+/// `sm_61` pour compute 6.1 et 6.2 (GTX 1060, 1070, 1080).
+/// `sm_70` à partir de compute 7.0 : la RTX 2060 est en 7.5, la RTX 3060 en 8.6.
+/// Une 1060 a besoin d'un pilote de la branche 580, le dernier qui parle CUDA 12 pour Pascal.
+pub fn kernel_arch(major: i32, minor: i32) -> Option<&'static str> {
+    if (major, minor) >= (7, 0) {
+        Some("sm_70")
+    } else if (major, minor) >= (6, 1) {
+        Some("sm_61")
+    } else {
+        None
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct GpuInfo {
+    pub name: String,
+    pub gib: String,
+    pub major: i32,
+    pub minor: i32,
+    pub kernels: &'static str,
+}
+
+#[derive(Clone, Debug)]
+pub enum ProbeError {
+    Cuda(String),
+    Unsupported { major: i32, minor: i32 },
+}
+
+pub fn probe_gpu() -> Result<GpuInfo, ProbeError> {
+    let ctx = CudaContext::new(0).map_err(|err| ProbeError::Cuda(err.to_string()))?;
+    let facts = device_facts(&ctx).map_err(ProbeError::Cuda)?;
+    let kernels = kernel_arch(facts.major, facts.minor).ok_or(ProbeError::Unsupported {
+        major: facts.major,
+        minor: facts.minor,
+    })?;
+    Ok(info_from(facts, kernels))
+}
+
+pub fn probe_report() -> (String, i32) {
+    let ctx = match CudaContext::new(0) {
+        Ok(ctx) => ctx,
+        Err(err) => return (serde_json::json!({"ev": "probe", "error": err.to_string()}).to_string(), 1),
+    };
+    let facts = match device_facts(&ctx) {
+        Ok(facts) => facts,
+        Err(err) => return (serde_json::json!({"ev": "probe", "error": err}).to_string(), 1),
+    };
+    let kernels = kernel_arch(facts.major, facts.minor).unwrap_or("unsupported");
+    let mut value = serde_json::json!({
+        "ev": "probe",
+        "name": facts.name,
+        "total": facts.total,
+        "free": facts.free,
+        "major": facts.major,
+        "minor": facts.minor,
+        "kernels": kernels,
+    });
+    let code = if kernels == "unsupported" {
+        value["error"] = serde_json::Value::String(format!(
+            "carte non prise en charge (compute {}.{})",
+            facts.major, facts.minor
+        ));
+        1
+    } else {
+        0
+    };
+    (value.to_string(), code)
+}
+
+pub(crate) fn report_card(info: &GpuInfo, report: &mut impl FnMut(&str, &[&str], f32), fraction: f32) {
+    let compute = format!("{}.{}", info.major, info.minor);
+    report("gpu.available", &[&info.name, &compute, info.kernels, &info.gib], fraction);
+}
+
+struct DeviceFacts {
+    name: String,
+    total: usize,
+    free: usize,
+    major: i32,
+    minor: i32,
+}
+
+fn device_facts(ctx: &CudaContext) -> Result<DeviceFacts, String> {
     let name = ctx.name().map_err(|err| err.to_string())?;
-    let bytes = ctx.total_mem().map_err(|err| err.to_string())?;
-    let gib = bytes as f64 / (1024.0 * 1024.0 * 1024.0);
-    Ok((name, format!("{gib:.1}")))
+    let total = ctx.total_mem().map_err(|err| err.to_string())?;
+    let (free, _) = ctx.mem_get_info().map_err(|err| err.to_string())?;
+    let (major, minor) = ctx.compute_capability().map_err(|err| err.to_string())?;
+    Ok(DeviceFacts { name, total, free, major, minor })
+}
+
+fn info_from(facts: DeviceFacts, kernels: &'static str) -> GpuInfo {
+    GpuInfo {
+        name: facts.name,
+        gib: format!("{:.1}", facts.total as f64 / (1024.0 * 1024.0 * 1024.0)),
+        major: facts.major,
+        minor: facts.minor,
+        kernels,
+    }
+}
+
+fn ptx_sm70() -> &'static str {
+    let _stamp = env!("DUBDSR_PTX_STAMP");
+    include_str!(env!("DUBDSR_PTX"))
+}
+
+fn ptx_sm61() -> &'static str {
+    let _stamp = env!("DUBDSR_PTX_SM61_STAMP");
+    include_str!(env!("DUBDSR_PTX_SM61"))
 }
 
 pub struct Gpu {
+    pub(crate) info: GpuInfo,
     stream: Arc<CudaStream>,
     _module: Arc<CudaModule>,
     convolve_h: CudaFunction,
@@ -54,13 +157,25 @@ pub struct Gpu {
 impl Gpu {
     pub fn new() -> Result<Self, PipelineError> {
         let ctx = CudaContext::new(0).map_err(map_gpu)?;
+        let (major, minor) = ctx.compute_capability().map_err(map_gpu)?;
+        let kernels = kernel_arch(major, minor).ok_or_else(|| PipelineError::with("error.unsupported_gpu", format!("{major}.{minor}")))?;
+        let ptx = match kernels {
+            "sm_61" => ptx_sm61(),
+            _ => ptx_sm70(),
+        };
+        Self::open(ctx, ptx, kernels)
+    }
+
+    fn open(ctx: Arc<CudaContext>, ptx_src: &'static str, kernels: &'static str) -> Result<Self, PipelineError> {
+        let facts = device_facts(&ctx).map_err(|err| PipelineError::with("error.gpu", err))?;
+        let info = info_from(facts, kernels);
         let stream = ctx.default_stream();
-        let ptx = Ptx::from_src(include_str!(env!("DUBDSR_PTX")));
-        let module = ctx.load_module(ptx).map_err(map_gpu)?;
+        let module = ctx.load_module(Ptx::from_src(ptx_src)).map_err(map_gpu)?;
         let load = |name: &str| module.load_function(name).map_err(|err| PipelineError::with("error.gpu", format!("{name}: {err}")));
         let (kernel_fine, fine_len) = upload_kernel(&stream, 1.5)?;
         let (kernel_wide, wide_len) = upload_kernel(&stream, 6.0)?;
         Ok(Self {
+            info,
             stream,
             convolve_h: load("convolve_h")?,
             convolve_v: load("convolve_v")?,
@@ -296,6 +411,87 @@ fn map_gpu(err: DriverError) -> PipelineError {
 mod tests {
     use super::*;
     use crate::pipeline::align::phase_shift;
+
+    #[test]
+    fn kernel_arch_splits_pascal_and_turing() {
+        assert_eq!(kernel_arch(6, 0), None);
+        assert_eq!(kernel_arch(6, 1), Some("sm_61"));
+        assert_eq!(kernel_arch(6, 2), Some("sm_61"));
+        assert_eq!(kernel_arch(7, 0), Some("sm_70"));
+        assert_eq!(kernel_arch(7, 5), Some("sm_70"));
+        assert_eq!(kernel_arch(8, 6), Some("sm_70"));
+    }
+
+    #[test]
+    fn embedded_ptx_has_no_unresolved_extern() {
+        for ptx in [ptx_sm70(), ptx_sm61()] {
+            assert!(!ptx.contains(".extern .func"), "{ptx}");
+        }
+        assert!(ptx_sm70().contains(".target sm_70"));
+        assert!(ptx_sm61().contains(".target sm_61"));
+    }
+
+    #[test]
+    fn probe_json_includes_compute_and_module() {
+        let (text, code) = probe_report();
+        let value: serde_json::Value = serde_json::from_str(&text).expect("json");
+        assert_eq!(value["ev"], "probe");
+        if value.get("major").is_none() {
+            assert_ne!(code, 0);
+            return;
+        }
+        assert!(value["minor"].as_i64().is_some());
+        let kernels = value["kernels"].as_str().expect("kernels");
+        assert!(kernels == "sm_61" || kernels == "sm_70" || kernels == "unsupported", "{kernels}");
+        if value["major"].as_i64().unwrap() >= 7 {
+            assert_eq!(kernels, "sm_70");
+            assert_eq!(code, 0);
+        }
+    }
+
+    #[test]
+    fn startup_loads_sm70_on_recent_cards() {
+        let gpu = match Gpu::new() {
+            Ok(gpu) => gpu,
+            Err(err) => {
+                eprintln!("GPU ignoré: {err}");
+                return;
+            }
+        };
+        assert_eq!(gpu.info.kernels, kernel_arch(gpu.info.major, gpu.info.minor).unwrap());
+        if (gpu.info.major, gpu.info.minor) >= (7, 0) {
+            assert_eq!(gpu.info.kernels, "sm_70");
+        }
+    }
+
+    #[test]
+    fn pascal_module_launches_on_newer_gpu() {
+        let ctx = match CudaContext::new(0) {
+            Ok(ctx) => ctx,
+            Err(err) => {
+                eprintln!("GPU ignoré: {err}");
+                return;
+            }
+        };
+        let (major, minor) = match ctx.compute_capability() {
+            Ok(pair) => pair,
+            Err(err) => {
+                eprintln!("GPU ignoré: {err}");
+                return;
+            }
+        };
+        if (major, minor) < (6, 1) {
+            return;
+        }
+        let gpu = Gpu::open(ctx, ptx_sm61(), "sm_61").expect("le pilote doit accepter le PTX sm_61");
+        assert_eq!(gpu.info.kernels, "sm_61");
+        let image = vec![0.25f32; 16 * 16];
+        let device = gpu.upload(&image).unwrap();
+        let scores = gpu.sharpness(&device, 1, 16, 16).unwrap();
+        assert_eq!(scores.len(), 1);
+        let stacked = gpu.superres(&device, 1, 16, 16, &[(0.0, 0.0)], &[1.0], 1, None).unwrap();
+        assert_eq!(stacked.len(), 16 * 16);
+    }
 
     fn blob(height: usize, width: usize, cy: f32, cx: f32) -> Vec<f32> {
         let mut image = vec![0.0; height * width];

@@ -1,7 +1,8 @@
 window.title = dubdsr — Sol / Luna (CUDA) --- Versión {1}
 gpu.prefix = GPU: {1}
-gpu.available = {1} — {2} GB VRAM libre
+gpu.available = {1} — compute {2} — {3} — {4} GB VRAM libre
 gpu.unavailable = CUDA no disponible: {1}
+gpu.unsupported = Tarjeta no compatible (compute {1}). Se requiere una GTX 1060 (6.1) o una tarjeta más reciente.
 target.box = Objetivo
 target.label = Objeto a apilar:
 target.sun = ☀ Sol
@@ -80,6 +81,7 @@ error.debayer_mono = El debayer espera una imagen RAW mono-plano.
 error.scale_min = scale debe ser >= 1
 error.vram = El vídeo no cabe en la memoria de la GPU: {1}
 error.gpu = Error de GPU: {1}
+error.unsupported_gpu = Tarjeta no compatible (compute {1}). Se requiere una GTX 1060 (6.1) o una tarjeta más reciente.
 error.write = No se puede escribir el TIFF: {1}
 help.open = Abre la ventana de ayuda.
 help.title = dubdsr — Ayuda
@@ -90,7 +92,7 @@ help.t.progress = Barra de progreso
 help.t.status = Línea de estado
 help.t.slider = Control de sección
 help.t.time = Tiempo
-help.gpu = Nombre de la tarjeta NVIDIA y su memoria, en GB. No hay nada que ajustar. Si CUDA no está disponible, el apilado fallará.
+help.gpu = Nombre de la tarjeta, compute X.Y, módulo sm_61 o sm_70, y memoria en GB. No hay nada que ajustar. Una tarjeta anterior a la GTX 1060 no es compatible. Si CUDA no está disponible, el apilado fallará.
 help.target = Sol y Luna son dos perfiles distintos. Cada uno guarda su ruta y todos sus ajustes. Haga clic en la lista para cambiar.
 help.path = Ruta del vídeo AVI o de la carpeta de fotos. Pegue una ruta y haga clic en otro lugar para abrirla.
 help.browse = Abre un vídeo AVI de SeeStar, también de más de 1 GB. El TIFF se escribe junto al vídeo: nombre_stacked.tiff.
