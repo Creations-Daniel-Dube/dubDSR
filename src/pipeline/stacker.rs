@@ -150,6 +150,9 @@ pub fn stack_video(input: &Path, settings: &StackSettings, mut report: impl FnMu
 
     let linear = gpu.superres(&packed_gpu, selected.len(), crop_h, crop_w, &shifts, &selected_scores, settings.drizzle_scale, pattern)?;
     drop(packed_gpu);
+    // Libère la mémoire CUDA avant le TIFF : la 1060 3 Go doit pouvoir créer
+    // la texture d'aperçu juste après, sur le même GPU.
+    drop(gpu);
 
     let out_h = (crop_h as usize) * (settings.drizzle_scale.max(1) as usize);
     let out_w = (crop_w as usize) * (settings.drizzle_scale.max(1) as usize);

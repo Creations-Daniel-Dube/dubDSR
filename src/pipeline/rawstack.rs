@@ -118,6 +118,7 @@ pub fn stack_raw_folder(input: &Path, settings: &StackSettings, on_progress: &mu
         total_weight += normal;
     }
     scale_average(&mut accum, total_weight);
+    drop(gpu);
 
     let output = stacked_dir_path(input);
     let result = write_result(

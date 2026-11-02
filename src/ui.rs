@@ -266,7 +266,7 @@ impl DubApp {
         }
     }
 
-    fn finish_ok(&mut self, ctx: &Context, result: StackResult) {
+    fn finish_ok(&mut self, ctx: &Context, mut result: StackResult) {
         let elapsed = self.stop_timer();
         self.frozen_time = self.catalog.fmt("total", &[&self.format_duration(elapsed)]);
         self.progress = 1.0;
@@ -276,7 +276,7 @@ impl DubApp {
             bayer: result.bayer_pattern.clone(),
             path: result.output_path.display().to_string(),
         };
-        self.show_result(ctx, &result);
+        self.show_result(ctx, &mut result);
     }
 
     fn finish_err(&mut self, err: PipelineError) {
@@ -342,20 +342,13 @@ impl DubApp {
         }
     }
 
-    fn show_result(&mut self, ctx: &Context, result: &StackResult) {
-        if result.width == 0 || result.height == 0 {
+    fn show_result(&mut self, ctx: &Context, result: &mut StackResult) {
+        let max_edge = ctx.input(|input| input.max_texture_side).min(PREVIEW_EDGE);
+        let Some(image) = stacked_preview(&result.pixels, result.width, result.height, result.rgb, max_edge) else {
             return;
-        }
-        let bytes: Vec<u8> = result.pixels.iter().map(|value| (value / 257) as u8).collect();
-        let expected = result.width * result.height * if result.rgb { 3 } else { 1 };
-        if bytes.len() != expected {
-            return;
-        }
-        let image = if result.rgb {
-            ColorImage::from_rgb([result.width, result.height], &bytes)
-        } else {
-            ColorImage::from_gray([result.width, result.height], &bytes)
         };
+        // Le tampon 16 bits ne sert plus : le relâcher avant l'envoi GPU.
+        result.pixels = Vec::new();
         self.preview = Some(ctx.load_texture("preview", image, TextureOptions::LINEAR));
         self.preview_size = vec2(result.width as f32, result.height as f32);
     }
@@ -1178,10 +1171,100 @@ fn tip_label(ui: &mut egui::Ui, text: &str) {
     ui.label(text);
 }
 
+/// Grand côté maximum de la texture d'aperçu.
+///
+/// egui demande 8192 px à wgpu, et une GTX 1060 plafonne souvent à 16384.
+/// L'image drizzle dépasse l'un ou l'autre, ou simplement les 3 Go : `write_texture`
+/// panique alors dans la boucle d'affichage. Sous `windows_subsystem`, le processus
+/// se ferme sans message, alors que le TIFF est déjà sur le disque.
+const PREVIEW_EDGE: usize = 2048;
+
+fn stacked_preview(pixels: &[u16], width: usize, height: usize, rgb: bool, max_edge: usize) -> Option<ColorImage> {
+    let channels = if rgb { 3 } else { 1 };
+    let plane = width.checked_mul(height)?.checked_mul(channels)?;
+    if width == 0 || height == 0 || pixels.len() != plane {
+        return None;
+    }
+    let (out_w, out_h) = preview_extent(width, height, max_edge);
+    let mut out = Vec::with_capacity(out_w * out_h);
+    for row in 0..out_h {
+        let y0 = (row as u64 * height as u64 / out_h as u64) as usize;
+        let y1 = (((row as u64 + 1) * height as u64 / out_h as u64) as usize).max(y0 + 1).min(height);
+        for col in 0..out_w {
+            let x0 = (col as u64 * width as u64 / out_w as u64) as usize;
+            let x1 = (((col as u64 + 1) * width as u64 / out_w as u64) as usize).max(x0 + 1).min(width);
+            let count = ((x1 - x0) * (y1 - y0)) as u64;
+            let mut sums = [0u64; 3];
+            for y in y0..y1 {
+                let base = (y * width + x0) * channels;
+                for x in 0..(x1 - x0) {
+                    let pixel = base + x * channels;
+                    for channel in 0..channels {
+                        sums[channel] += u64::from(pixels[pixel + channel]);
+                    }
+                }
+            }
+            let tone = |sum: u64| (sum / count / 257).min(255) as u8;
+            let color = if rgb {
+                Color32::from_rgb(tone(sums[0]), tone(sums[1]), tone(sums[2]))
+            } else {
+                Color32::from_gray(tone(sums[0]))
+            };
+            out.push(color);
+        }
+    }
+    Some(ColorImage::new([out_w, out_h], out))
+}
+
+fn preview_extent(width: usize, height: usize, max_edge: usize) -> (usize, usize) {
+    let max_edge = max_edge.max(1);
+    let long = width.max(height).max(1);
+    if long <= max_edge {
+        return (width, height);
+    }
+    let out_w = (width as u64 * max_edge as u64 / long as u64).max(1) as usize;
+    let out_h = (height as u64 * max_edge as u64 / long as u64).max(1) as usize;
+    (out_w, out_h)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::HELP_ITEMS;
+    use eframe::egui::Color32;
+
+    use super::{HELP_ITEMS, preview_extent, stacked_preview};
     use crate::i18n::Catalog;
+
+    #[test]
+    fn preview_keeps_a_small_stack_and_scales_u16() {
+        let image = stacked_preview(&[0, 257, 514, 65535], 2, 2, false, 2048).unwrap();
+        assert_eq!(image.size, [2, 2]);
+        assert_eq!(image.pixels[0], Color32::from_gray(0));
+        assert_eq!(image.pixels[1], Color32::from_gray(1));
+        assert_eq!(image.pixels[2], Color32::from_gray(2));
+        assert_eq!(image.pixels[3], Color32::from_gray(255));
+    }
+
+    #[test]
+    fn preview_averages_down_to_the_long_edge() {
+        let image = stacked_preview(&[0, 65535], 2, 1, false, 1).unwrap();
+        assert_eq!(preview_extent(12_000, 8_000, 2048), (2048, 1365));
+        assert_eq!(image.size, [1, 1]);
+        assert_eq!(image.pixels[0], Color32::from_gray(127));
+    }
+
+    #[test]
+    fn preview_averages_rgb_blocks() {
+        let pixels = [0u16, 514, 0, 0, 514, 0, 0, 514, 1542, 1028, 514, 1542];
+        let image = stacked_preview(&pixels, 2, 2, true, 1).unwrap();
+        assert_eq!(image.size, [1, 1]);
+        assert_eq!(image.pixels[0], Color32::from_rgb(1, 2, 3));
+    }
+
+    #[test]
+    fn preview_rejects_a_truncated_buffer() {
+        assert!(stacked_preview(&[0, 1, 2], 2, 2, false, 64).is_none());
+        assert!(stacked_preview(&[], 0, 10, true, 64).is_none());
+    }
 
     #[test]
     fn help_texts_exist_in_every_language() {
