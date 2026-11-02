@@ -4,7 +4,7 @@
 
 [English](#english)
 
-# dubDSR v1.2.50 alias **dub Disc Stacking Rust**
+# dubDSR v1.3.111 alias **dub Disc Stacking Rust**
 
 > Application du catalogue dubSuite. Installation, mises à jour et désinstallation : [dubSuite](https://github.com/Creations-Daniel-Dube/dubSuite).
 
@@ -60,7 +60,7 @@ cargo build --release
 
 [Français](#français)
 
-# dubDSR v1.1.1 aka dub Disc Stacking Rust
+# dubDSR v1.3.111 aka dub Disc Stacking Rust
 
 Nvidia GPU stacking of the Sun and Moon for SeeStar RAW videos and camera RAW photo series. The program you run is a pure Rust binary.
 
