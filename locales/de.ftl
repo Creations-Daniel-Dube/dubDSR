@@ -22,7 +22,7 @@ range.labels = Anfang: Frame {1} ({2})  —  Ende: Frame {3} ({4})
 settings.box = Einstellungen
 keep = Behaltene Frames (weniger = schärfer)
 max_frames = Frame-Limit (0 = alle)
-debayer = Debayer (SeeStar RAW)
+debayer = Debayer (SeeStar/DSLR RAW)
 bayer.auto = Auto (empfohlen)
 bayer = Bayer-Muster
 wb = Auto-Weißabgleich (korrigiert Grünstich)

@@ -3,8 +3,8 @@ gpu.prefix = GPU : {1}
 gpu.available = {1} — compute {2} — {3} — {4} Go VRAM libre
 gpu.unavailable = CUDA indisponible : {1}
 gpu.unsupported = Carte non prise en charge (compute {1}). Une GTX 1060 (6.1) ou une carte plus récente est requise.
-target.box = Cible
-target.label = Objet à empiler :
+target.box = Type d'objet à empiler
+target.label = Type d'objet :
 target.sun = ☀ Soleil
 target.moon = 🌒 Lune
 file.box = Source
@@ -22,7 +22,7 @@ range.labels = Début : frame {1} ({2})  —  Fin : frame {3} ({4})
 settings.box = Réglages
 keep = Frames conservées (moins = plus net)
 max_frames = Limite de frames (0 = toutes)
-debayer = Debayer (SeeStar RAW)
+debayer = Debayer (SeeStar/DSLR RAW)
 bayer.auto = Auto (recommandé)
 bayer = Motif Bayer
 wb = Balance des blancs auto (corrige le voile vert)

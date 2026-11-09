@@ -22,7 +22,7 @@ range.labels = Inicio: fotograma {1} ({2})  —  Fin: fotograma {3} ({4})
 settings.box = Ajustes
 keep = Fotogramas conservados (menos = más nítido)
 max_frames = Límite de fotogramas (0 = todos)
-debayer = Debayer (SeeStar RAW)
+debayer = Debayer (SeeStar/DSLR RAW)
 bayer.auto = Auto (recomendado)
 bayer = Patrón Bayer
 wb = Balance de blancos auto (corrige el velo verde)

@@ -22,7 +22,7 @@ range.labels = Start: frame {1} ({2})  —  End: frame {3} ({4})
 settings.box = Settings
 keep = Frames kept (fewer = sharper)
 max_frames = Frame limit (0 = all)
-debayer = Debayer (SeeStar RAW)
+debayer = Debayer (SeeStar/DSLR RAW)
 bayer.auto = Auto (recommended)
 bayer = Bayer pattern
 wb = Auto white balance (fixes green cast)

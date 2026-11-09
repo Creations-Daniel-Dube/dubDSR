@@ -19,14 +19,14 @@ Les valeurs de la capture ci-dessous sont celles d’un profil Lune déjà modif
 
 ![Fenêtre de dubdsr 1.2.2](fenetre.png)
 
-Les numéros sur la capture sont ceux des contrôles ci-dessous. Les titres de groupe (Cible, Source, Zone à empiler, Réglages, Tons) ne sont pas numérotés. Dans **Réglages** et dans **Tons**, les numéros descendent d’abord la colonne de gauche, puis la colonne de droite.
+Les numéros sur la capture sont ceux des contrôles ci-dessous. Les titres de groupe (Type d'objet à empiler, Source, Zone à empiler, Réglages, Tons) ne sont pas numérotés. Dans **Réglages** et dans **Tons**, les numéros descendent d’abord la colonne de gauche, puis la colonne de droite.
 
 Dans le programme, le bouton **?** à droite du titre **Aperçu du résultat** ouvre une fenêtre avec cette capture et les mêmes textes. Le survol d’un contrôle affiche son texte sans ouvrir la fenêtre. La langue de l’aide suit `Ctrl+L`.
 
 | N° | Contrôle sur la capture |
 | --- | --- |
 | 1 | Ligne GPU |
-| 2 | Objet à empiler |
+| 2 | Type d'objet |
 | 3 | Champ du chemin |
 | 4 | Vidéo… |
 | 5 | Photos… |
@@ -36,7 +36,7 @@ Dans le programme, le bouton **?** à droite du titre **Aperçu du résultat** o
 | 9 | Limite de frames |
 | 10 | Motif Bayer |
 | 11 | Marge autour du disque |
-| 12 | Debayer (SeeStar RAW) |
+| 12 | Debayer (SeeStar/DSLR RAW) |
 | 13 | Balance des blancs auto |
 | 14 | Recadrage auto sur le disque |
 | 15 | Drizzle x3 |
@@ -63,9 +63,9 @@ La ligne sous la barre de titre nomme la carte NVIDIA et indique sa mémoire en 
 
 Rien à cliquer. Si le pilote manque, le texte devient `CUDA indisponible` et la fenêtre 30 s’ouvre. Le programme reste ouvert, mais **Empiler** échouera tant que la carte n’est pas détectée. Une vidéo trop longue, ou une série trop large pour la mémoire, s’arrête aussi avec un message explicite.
 
-## 2. Objet à empiler
+## 2. Type d'objet
 
-Liste **Soleil** ou **Lune**, dans le cadre **Cible**.
+Liste **Soleil** ou **Lune**, dans le cadre **Type d'objet à empiler**.
 
 Cliquez le champ, puis choisissez l’objet. Le profil quitté garde son chemin et ses réglages. Le profil choisi revient avec son dernier chemin et ses propres valeurs. À la première utilisation, les deux profils partagent les mêmes réglages, sauf la balance des blancs (13) et l’aplatissement du centre (16).
 
@@ -123,11 +123,11 @@ Cliquez le champ et choisissez une ligne. **Auto** sur une vidéo compare les qu
 
 Cliquez ou glissez, de 1 % à 30 %. Première utilisation : 5 %. Une marge plus grande garde davantage de ciel autour du disque. Le carré suit l’étendue du disque : un croissant n’est pas recentré sur son bord brillant.
 
-## 12. Debayer (SeeStar RAW)
+## 12. Debayer (SeeStar/DSLR RAW)
 
 Case à cocher. Cochée, dubdsr reconstruit la couleur à partir de la mosaïque Bayer. Décochée, l’empilement et le TIFF restent en niveaux de gris, sur un seul canal.
 
-Cliquez la case ou son libellé. Première utilisation : cochée. Laissez-la cochée pour un RAW SeeStar couleur ou pour des photos couleur. Décochez-la pour une source déjà en gris, ou si vous voulez une pile monochrome.
+Cliquez la case ou son libellé. Première utilisation : cochée. Laissez-la cochée pour un RAW SeeStar ou DSLR couleur, ou pour des photos couleur. Décochez-la pour une source déjà en gris, ou si vous voulez une pile monochrome.
 
 ## 13. Balance des blancs auto (corrige le voile vert)
 
